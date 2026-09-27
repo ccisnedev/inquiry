@@ -90,9 +90,11 @@ jobs:
           - os: windows-latest
             asset: inquiry-windows-x64.zip
             binary: inquiry.exe
+            binary_asset: inquiry-windows-x64.exe
           - os: ubuntu-latest
             asset: inquiry-linux-x64.tar.gz
             binary: inquiry
+            binary_asset: inquiry-linux-x64
     defaults:
       run:
         working-directory: code/cli
@@ -170,12 +172,26 @@ jobs:
         if: runner.os == 'Linux'
         run: tar czf ${{ matrix.asset }} -C build .
 
+      # ── Prepare standalone binary asset ──
+      # `modular_cli_sdk`'s `InstallationPlugin` downloads this bare
+      # executable directly for `upgrade`/first install: it never extracts
+      # an archive (ccisnedev/inquiry#321), so the archive above is not
+      # enough on its own.
+      - name: Prepare standalone binary asset (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item build\bin\${{ matrix.binary }} ${{ matrix.binary_asset }}
+
+      - name: Prepare standalone binary asset (Linux)
+        if: runner.os == 'Linux'
+        run: cp build/bin/${{ matrix.binary }} ${{ matrix.binary_asset }}
+
       # ── Upload ──
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "v${{ needs.check-version.outputs.version }}" ${{ matrix.asset }} --clobber
+          gh release upload "v${{ needs.check-version.outputs.version }}" ${{ matrix.asset }} ${{ matrix.binary_asset }} --clobber
         shell: bash
 
   # ─── Job 4: Publish release after all assets are present ──────────
@@ -192,7 +208,7 @@ jobs:
           ASSETS=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
           echo "$ASSETS"
 
-          for asset in inquiry-windows-x64.zip inquiry-linux-x64.tar.gz; do
+          for asset in inquiry-windows-x64.zip inquiry-linux-x64.tar.gz inquiry-windows-x64.exe inquiry-linux-x64; do
             if ! echo "$ASSETS" | grep -qx "$asset"; then
               echo "Missing expected asset: $asset"
               exit 1
