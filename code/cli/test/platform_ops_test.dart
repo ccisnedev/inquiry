@@ -6,16 +6,29 @@ import 'package:inquiry_cli/hosts/platform_ops.dart';
 
 /// A fake [PlatformOps] for testing. Records calls and returns
 /// configurable values without touching the real OS.
-///
-/// Binary replacement and uninstall-directory deletion moved to
-/// `modular_cli_sdk`'s `InstallationPlugin` (ccisnedev/inquiry#321): this
-/// fake only covers what [PlatformOps] still owns.
 class FakePlatformOps implements PlatformOps {
+  final String fakeBinaryName;
+  final String fakeAssetName;
   final String? fakeEnvValue;
 
   final List<String> calls = [];
 
-  FakePlatformOps({this.fakeEnvValue});
+  FakePlatformOps({
+    this.fakeBinaryName = 'ape-fake',
+    this.fakeAssetName = 'ape-fake.zip',
+    this.fakeEnvValue,
+  });
+
+  @override
+  String get binaryName => fakeBinaryName;
+
+  @override
+  String get assetName => fakeAssetName;
+
+  @override
+  Future<void> expandArchive(String archivePath, String destDir) async {
+    calls.add('expandArchive($archivePath, $destDir)');
+  }
 
   @override
   String? getEnvVariable(String name) {
@@ -28,14 +41,18 @@ class FakePlatformOps implements PlatformOps {
     calls.add('setEnvVariable($name, $value)');
   }
 
+  @override
+  Future<void> selfReplace(
+    String newBinaryPath,
+    String currentBinaryPath,
+  ) async {
+    calls.add('selfReplace($newBinaryPath, $currentBinaryPath)');
+  }
+
   /// What the fake child reports back. `upgrade` echoes this, so a test can
   /// assert the user is shown which hosts were deployed to.
-  ProcessResult postInstallResult = ProcessResult(
-    0,
-    0,
-    'Inquiry agent + skills deployed to host claude',
-    '',
-  );
+  ProcessResult postInstallResult =
+      ProcessResult(0, 0, 'Inquiry agent + skills deployed to host claude', '');
 
   @override
   Future<ProcessResult> runPostInstall(String installDir) async {
@@ -43,15 +60,9 @@ class FakePlatformOps implements PlatformOps {
     return postInstallResult;
   }
 
-  /// What [expandArchive] does to [destDir] once "extraction" is recorded.
-  /// Defaults to doing nothing, matching an archive with no `assets/` folder
-  /// in it — a test that needs one configures this.
-  void Function(String archivePath, String destDir) onExpandArchive = (_, _) {};
-
   @override
-  Future<void> expandArchive(String archivePath, String destDir) async {
-    calls.add('expandArchive($archivePath, $destDir)');
-    onExpandArchive(archivePath, destDir);
+  Future<void> scheduleDeletion(String dir) async {
+    calls.add('scheduleDeletion($dir)');
   }
 }
 
@@ -67,6 +78,19 @@ void main() {
       // If this compiles, the fake satisfies the interface.
       final PlatformOps ops = fake;
       expect(ops, isA<PlatformOps>());
+    });
+
+    test('binaryName returns non-empty string', () {
+      expect(fake.binaryName, isNotEmpty);
+    });
+
+    test('assetName returns non-empty string', () {
+      expect(fake.assetName, isNotEmpty);
+    });
+
+    test('expandArchive is callable and records call', () async {
+      await fake.expandArchive('/tmp/archive.zip', '/tmp/dest');
+      expect(fake.calls, contains('expandArchive(/tmp/archive.zip, /tmp/dest)'));
     });
 
     test('getEnvVariable returns configured value', () {
@@ -85,6 +109,11 @@ void main() {
       expect(fake.calls, contains('setEnvVariable(PATH, /usr/local/bin)'));
     });
 
+    test('selfReplace completes without error', () async {
+      await fake.selfReplace('/new/ape', '/old/ape');
+      expect(fake.calls, contains('selfReplace(/new/ape, /old/ape)'));
+    });
+
     test('runPostInstall completes and returns the child result', () async {
       final result = await fake.runPostInstall('/opt/ape');
       expect(fake.calls, contains('runPostInstall(/opt/ape)'));
@@ -93,15 +122,9 @@ void main() {
       expect(result.stdout, contains('deployed'));
     });
 
-    // `expandArchive` exists only to refresh the bundled `assets/` folder
-    // after `upgrade`: `InstallationPlugin`'s own binary replacement
-    // downloads a bare executable, never an archive (ccisnedev/inquiry#321).
-    test('expandArchive records what it was asked to extract', () async {
-      await fake.expandArchive('/tmp/release.zip', '/opt/ape/extracted');
-      expect(
-        fake.calls,
-        contains('expandArchive(/tmp/release.zip, /opt/ape/extracted)'),
-      );
+    test('scheduleDeletion records call', () {
+      fake.scheduleDeletion('/tmp/ape_dir');
+      expect(fake.calls, contains('scheduleDeletion(/tmp/ape_dir)'));
     });
   });
 
@@ -109,6 +132,8 @@ void main() {
     test('returns a non-null PlatformOps instance', () {
       final ops = PlatformOps.current();
       expect(ops, isA<PlatformOps>());
+      expect(ops.binaryName, isNotEmpty);
+      expect(ops.assetName, isNotEmpty);
     });
   });
 
@@ -119,7 +144,12 @@ void main() {
   // and every upgrade reports a failed redeploy.
   group('post-install arguments', () {
     test('carry the approval the upgrade already took', () {
-      expect(postInstallArguments, ['host', 'get', '--apply', '--autoapprove']);
+      expect(postInstallArguments, [
+        'host',
+        'get',
+        '--apply',
+        '--autoapprove',
+      ]);
     });
   });
 }

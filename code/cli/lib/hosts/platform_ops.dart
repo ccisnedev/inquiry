@@ -1,17 +1,13 @@
-/// Cross-platform abstraction for OS-specific shell operations that have no
-/// equivalent in `modular_cli_sdk`'s `InstallationPlugin`.
+/// Cross-platform abstraction for OS-specific shell operations.
 ///
-/// Binary replacement and uninstall-directory deletion moved to
-/// `InstallationPlugin` (ccisnedev/inquiry#321): what remains here is
-/// environment-variable access, used by the uninstall PATH cleanup,
-/// post-install host redeployment, used after an upgrade, and archive
-/// extraction, used to refresh the bundled `assets/` folder after an
-/// upgrade (`InstallationPlugin` itself only ever writes a bare executable).
+/// PlatformOps wraps operations that differ between Windows and Linux:
+/// archive extraction, environment variables, binary replacement, etc.
 ///
 /// Path manipulation is NOT part of this abstraction — use `package:path`.
 library;
 
 import 'dart:io';
+
 
 import 'linux_platform_ops.dart';
 import 'windows_platform_ops.dart';
@@ -21,11 +17,28 @@ import 'windows_platform_ops.dart';
 /// Implementations: [WindowsPlatformOps], [LinuxPlatformOps].
 /// For tests: create a fake that implements this class.
 abstract class PlatformOps {
+  /// The compiled binary name for this platform (e.g. `inquiry.exe` or `inquiry`).
+  String get binaryName;
+
+  /// The release asset name for this platform (e.g. `inquiry-windows-x64.zip`).
+  String get assetName;
+
+  /// Extract an archive to [destDir].
+  ///
+  /// Windows: PowerShell `Expand-Archive`.
+  /// Linux: `tar xzf`.
+  Future<void> expandArchive(String archivePath, String destDir);
+
   /// Read a system environment variable. Returns `null` if not set.
   String? getEnvVariable(String name);
 
   /// Write a system environment variable.
   Future<void> setEnvVariable(String name, String value);
+
+  /// Replace the currently running binary with a new one.
+  ///
+  /// Handles OS-specific locking and permission issues.
+  Future<void> selfReplace(String newBinaryPath, String currentBinaryPath);
 
   /// Run post-install steps ([postInstallArguments]) using the correct binary.
   ///
@@ -37,18 +50,11 @@ abstract class PlatformOps {
   /// the upgrade has already succeeded, so it may fail but must never block.
   Future<ProcessResult> runPostInstall(String installDir);
 
-  /// Extracts the archive at [archivePath] into [destDir], which must
-  /// already exist.
+  /// Schedule deletion of a directory after the current process exits.
   ///
-  /// Used only to refresh the bundled `assets/` folder after `upgrade`
-  /// (ccisnedev/inquiry#321): `InstallationPlugin`'s own binary replacement
-  /// downloads a bare per-platform executable, never an archive — see its
-  /// own doc comment on why it deliberately does not support one. Inquiry
-  /// still ships `assets/` alongside the binary, so `refreshAssetsAfterUpgrade`
-  /// downloads the same platform archive `install.ps1` / `install.sh` use
-  /// for a first install, and this extracts it into a scratch directory to
-  /// pull just that folder back out.
-  Future<void> expandArchive(String archivePath, String destDir);
+  /// Windows: rename running exe, spawn detached `cmd /c timeout ... rmdir`.
+  /// Linux: spawn detached `rm -rf`.
+  Future<void> scheduleDeletion(String dir);
 
   /// Factory that returns the correct implementation for the current OS.
   factory PlatformOps.current() {
