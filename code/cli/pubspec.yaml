@@ -1,14 +1,14 @@
 name: inquiry_cli
 description: >
   CLI for Inquiry — structured development through the APE methodology.
-version: 0.26.1
+version: 0.27.0
 
 environment:
   sdk: ^3.8.1
 dependencies:
-  cli_router: ^0.1.0
+  cli_router: ^0.2.0
   datajack: ^0.1.0
-  modular_cli_sdk: ^0.5.0
+  modular_cli_sdk: ^0.7.0
   skillwire: ^0.2.0
   path: ^1.9.1
   yaml: ^3.1.3

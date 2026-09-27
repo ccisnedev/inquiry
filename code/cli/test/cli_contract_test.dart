@@ -19,18 +19,22 @@ Future<({int code, String out, String err})> _run(List<String> args) async {
 
 void main() {
   group('a command refuses what it never declared', () {
-    test('`iq init --host claude` is rejected, not silently accepted', () async {
-      final r = await _run(const ['init', '--host', 'claude']);
+    test(
+      '`iq init --host claude` is rejected, not silently accepted',
+      () async {
+        final r = await _run(const ['init', '--host', 'claude']);
 
-      expect(r.code, ExitCode.validationFailed);
-      expect(r.err, contains('unknown option --host'));
-    });
+        expect(r.code, ExitCode.validationFailed);
+        // cli_router 0.2.0 quotes the option name and appends an error id tag.
+        expect(r.err, contains("unknown option '--host'"));
+      },
+    );
 
     test('`iq implementation start --bogus x` is rejected', () async {
       final r = await _run(const ['implementation', 'start', '--bogus', 'x']);
 
       expect(r.code, ExitCode.validationFailed);
-      expect(r.err, contains('unknown option --bogus'));
+      expect(r.err, contains("unknown option '--bogus'"));
     });
 
     test('the global options stay accepted everywhere', () async {
@@ -42,15 +46,17 @@ void main() {
   });
 
   group('the help renders each command contract', () {
-    test('`iq fsm transition --help` shows --event and its allowed values',
-        () async {
-      final r = await _run(const ['fsm', 'transition', '--help']);
+    test(
+      '`iq fsm transition --help` shows --event and its allowed values',
+      () async {
+        final r = await _run(const ['fsm', 'transition', '--help']);
 
-      expect(r.code, 0);
-      expect(r.out, contains('--event'));
-      expect(r.out, contains('complete_analysis'));
-      expect(r.out, contains('approve_plan'));
-    });
+        expect(r.code, 0);
+        expect(r.out, contains('--event'));
+        expect(r.out, contains('complete_analysis'));
+        expect(r.out, contains('approve_plan'));
+      },
+    );
 
     test('`iq host get --help` shows the allowed hosts', () async {
       final r = await _run(const ['host', 'get', '--help']);
@@ -77,7 +83,8 @@ void main() {
 
       expect(r.code, 0);
       final catalog = jsonDecode(r.out) as Map<String, dynamic>;
-      final commands = (catalog['commands'] as List).cast<Map<String, dynamic>>();
+      final commands = (catalog['commands'] as List)
+          .cast<Map<String, dynamic>>();
       final routes = commands.map((c) => c['route']).toList();
 
       expect(routes, contains('fsm transition'));
@@ -85,29 +92,34 @@ void main() {
 
       // A declared `allowed` set reaches the machine contract, not just the help
       // text: this is what lets a caller enumerate the legal events.
-      final transition =
-          commands.firstWhere((c) => c['route'] == 'fsm transition');
-      final params =
-          (transition['params'] as List).cast<Map<String, dynamic>>();
-      final event = params.firstWhere((p) => p['name'] == 'event');
+      // modular_cli_sdk 0.6.0 renamed the declared-options key from `params`
+      // to `options` (`CliContract.toJson()`).
+      final transition = commands.firstWhere(
+        (c) => c['route'] == 'fsm transition',
+      );
+      final options = (transition['options'] as List)
+          .cast<Map<String, dynamic>>();
+      final event = options.firstWhere((p) => p['name'] == 'event');
 
       expect(
         event['allowed'],
         containsAll(<String>['complete_analysis', 'approve_plan']),
       );
 
-      // Param kinds reach it too, so a caller can tell a flag from an option.
+      // Param types reach it too, so a caller can tell a flag from an
+      // option: every declared option's `kind` is now `'option'`
+      // (`CliParam.toJson()`), so a flag is told apart by its `type` instead.
       final hostGet = commands.firstWhere((c) => c['route'] == 'host get');
-      final hostParams =
-          (hostGet['params'] as List).cast<Map<String, dynamic>>();
+      final hostOptions = (hostGet['options'] as List)
+          .cast<Map<String, dynamic>>();
       expect(
-        hostParams.firstWhere((p) => p['name'] == 'configure-ollama')['kind'],
+        hostOptions.firstWhere((p) => p['name'] == 'configure-ollama')['type'],
         'flag',
       );
       // `--host` deliberately carries no default: defaulting to one made
       // `iq host get` deploy to a host the user might not have (#300).
       expect(
-        hostParams.firstWhere((p) => p['name'] == 'host')['default'],
+        hostOptions.firstWhere((p) => p['name'] == 'host')['default'],
         isNull,
       );
 

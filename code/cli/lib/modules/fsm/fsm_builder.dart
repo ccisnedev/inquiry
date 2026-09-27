@@ -9,14 +9,18 @@ void buildFsmModule(ModuleBuilder m, {Assets? assets}) {
     'state',
     (req) => FsmStateCommand(FsmStateInput.fromCliRequest(req), assets: assets),
     description: 'Show current FSM state, valid transitions, and active APEs',
-    params: FsmStateInput.params,
+    globals: true,
+    contract: FsmStateInput.contract,
   );
 
   m.query<StateTransitionInput, StateTransitionOutput>(
     'transition',
-    (req) => StateTransitionCommand(StateTransitionInput.fromCliRequest(req), assets: assets),
-    description:
-        'Run a deterministic FSM transition',
-    params: StateTransitionInput.params,
+    (req) => StateTransitionCommand(
+      StateTransitionInput.fromCliRequest(req),
+      assets: assets,
+    ),
+    description: 'Run a deterministic FSM transition',
+    globals: true,
+    contract: StateTransitionInput.contract,
   );
 }

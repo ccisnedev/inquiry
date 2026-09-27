@@ -59,22 +59,24 @@ class ImplementationStartInput extends Input {
     required this.workingDirectory,
   });
 
-  static final List<CliParam> params = [
-    CliParam.string(
-      'issue',
-      required: true,
-      description: 'The GitHub issue number to implement (e.g. --issue 40)',
-    ),
-  ];
+  static final CliContract contract = CliContract(
+    options: [
+      CliParam.string(
+        'issue',
+        abbr: null,
+        required: true,
+        repeatable: false,
+        defaultValue: null,
+        description: 'The GitHub issue number to implement (e.g. --issue 40)',
+      ),
+    ],
+  );
 
   factory ImplementationStartInput.fromCliRequest(CliRequest req) =>
       ImplementationStartInput(
         issue: (req.flagString('issue') ?? '').trim(),
         workingDirectory: Directory.current.path,
       );
-
-  @override
-  List<CliParam> get schemaFields => params;
 
   @override
   Map<String, dynamic> toJson() => {
@@ -182,7 +184,7 @@ class ImplementationStartCommand
     final projectRoot = getProjectRoot(input.workingDirectory);
     if (projectRoot == null) {
       throw CommandException(
-        code: 'NOT_A_GIT_REPO',
+        id: 'not-a-git-repo',
         message:
             'Not inside a git repository, so there is no place to open a cycle.\n'
             'Run `iq implementation start --issue ${input.issue} --apply` from '
@@ -194,7 +196,7 @@ class ImplementationStartCommand
     final info = _issueInfo(input.issue, projectRoot);
     if (info == null) {
       throw CommandException(
-        code: 'ISSUE_NOT_FOUND',
+        id: 'issue-not-found',
         message:
             'Could not read issue #${input.issue} from GitHub.\n'
             'Check that it exists and that `gh` is authenticated:\n'
@@ -208,7 +210,7 @@ class ImplementationStartCommand
       _branch = branchNameFor(issue: input.issue, title: info.title);
     } on ArgumentError catch (e) {
       throw CommandException(
-        code: 'EMPTY_SLUG',
+        id: 'empty-slug',
         message:
             '${e.message}\n'
             'Rename the issue to something with letters or numbers, then retry.',
@@ -358,7 +360,11 @@ class CheckoutBranch implements Step {
   @override
   Preview preview() {
     if (_onIt) {
-      return Preview(verb: 'stay', target: 'branch $branch', detail: 'already on it');
+      return Preview(
+        verb: 'stay',
+        target: 'branch $branch',
+        detail: 'already on it',
+      );
     }
     return _exists
         ? Preview(verb: 'checkout', target: 'branch $branch')
@@ -386,7 +392,7 @@ class CheckoutBranch implements Step {
 
     if (checkout.exitCode != 0) {
       throw CommandException(
-        code: 'BRANCH_CHECKOUT_FAILED',
+        id: 'branch-checkout-failed',
         message:
             'Could not switch to branch "$branch":\n'
             '${_gitErrorOf(checkout)}\n'
@@ -447,7 +453,7 @@ class StartAnalyze implements Step {
     );
     if (!result.ok) {
       throw CommandException(
-        code: 'TRANSITION_FAILED',
+        id: 'transition-failed',
         message:
             'Branch "$branch" is ready but the transition to ANALYZE failed:\n'
             '${result.message}',

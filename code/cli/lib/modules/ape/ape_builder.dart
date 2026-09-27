@@ -8,22 +8,29 @@ import 'commands/transition.dart';
 void buildApeModule(ModuleBuilder m, {Assets? assets}) {
   m.query<ApePromptInput, ApePromptOutput>(
     'prompt',
-    (req) => ApePromptCommand(ApePromptInput.fromCliRequest(req), assets: assets),
+    (req) =>
+        ApePromptCommand(ApePromptInput.fromCliRequest(req), assets: assets),
     description: 'Assemble a sub-agent prompt from YAML + current FSM state',
-    params: ApePromptInput.params,
+    globals: true,
+    contract: ApePromptInput.contract,
   );
 
   m.query<ApeStateInput, ApeStateOutput>(
     'state',
     (req) => ApeStateCommand(ApeStateInput.fromCliRequest(req), assets: assets),
     description: 'Show current APE sub-state and valid internal transitions',
-    params: ApeStateInput.params,
+    globals: true,
+    contract: ApeStateInput.contract,
   );
 
   m.query<ApeTransitionInput, ApeTransitionOutput>(
     'transition',
-    (req) => ApeTransitionCommand(ApeTransitionInput.fromCliRequest(req), assets: assets),
+    (req) => ApeTransitionCommand(
+      ApeTransitionInput.fromCliRequest(req),
+      assets: assets,
+    ),
     description: 'Execute an APE-internal transition',
-    params: ApeTransitionInput.params,
+    globals: true,
+    contract: ApeTransitionInput.contract,
   );
 }

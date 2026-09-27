@@ -17,14 +17,11 @@ class HostCleanInput extends Input {
 
   factory HostCleanInput.fromCliRequest(CliRequest req) => HostCleanInput();
 
-    /// Declares an EMPTY contract: this command accepts no option at all, so any
-  /// option passed to it is refused. Omitting `params` would mean "declares
+  /// Declares an EMPTY contract: this command accepts no option at all, so any
+  /// option passed to it is refused. Omitting `contract` would mean "declares
   /// nothing" — which is how `iq init --host claude` used to run, doing nothing
   /// the flag implied.
-  static const List<CliParam> params = [];
-
-  @override
-  List<CliParam> get schemaFields => params;
+  static const CliContract contract = CliContract.none;
 
   @override
   Map<String, dynamic> toJson() => {};
@@ -69,7 +66,10 @@ class CleanDeployedHosts implements Step {
   @override
   Future<Outcome> perform(StepContext context) async {
     deployer.clean();
-    return Outcome(verb: 'clean', target: 'every host this machine deployed to');
+    return Outcome(
+      verb: 'clean',
+      target: 'every host this machine deployed to',
+    );
   }
 }
 
@@ -96,8 +96,7 @@ class RemoveRepoScopedAgent implements Step {
 
 // ─── Command ────────────────────────────────────────────────────────────────
 
-class HostCleanCommand
-    implements Command<HostCleanInput, HostCleanOutput> {
+class HostCleanCommand implements Command<HostCleanInput, HostCleanOutput> {
   @override
   final HostCleanInput input;
   final HostDeployer deployer;

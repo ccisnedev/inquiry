@@ -31,14 +31,11 @@ class InitInput extends Input {
   factory InitInput.fromCliRequest(CliRequest req) =>
       InitInput(workingDirectory: Directory.current.path);
 
-    /// Declares an EMPTY contract: this command accepts no option at all, so any
-  /// option passed to it is refused. Omitting `params` would mean "declares
+  /// Declares an EMPTY contract: this command accepts no option at all, so any
+  /// option passed to it is refused. Omitting `contract` would mean "declares
   /// nothing" — which is how `iq init --host claude` used to run, doing nothing
   /// the flag implied.
-  static const List<CliParam> params = [];
-
-  @override
-  List<CliParam> get schemaFields => params;
+  static const CliContract contract = CliContract.none;
 
   @override
   Map<String, dynamic> toJson() => {'workingDirectory': workingDirectory};

@@ -98,7 +98,13 @@ class OperationalContractLoader {
     final stateName = state.value.toLowerCase();
     final yamlPath = assets != null
         ? assets!.path('fsm/states/$stateName.yaml')
-        : p.join(workingDirectory, 'assets', 'fsm', 'states', '$stateName.yaml');
+        : p.join(
+            workingDirectory,
+            'assets',
+            'fsm',
+            'states',
+            '$stateName.yaml',
+          );
 
     final yaml = _readYamlMap(yamlPath, stateName);
     final instructions = _readStringField(
@@ -121,14 +127,8 @@ class OperationalContractLoader {
       fieldName: 'required_artifacts',
       stateName: stateName,
     );
-    final interaction = _readInteractionField(
-      yaml,
-      stateName: stateName,
-    );
-    final inquiryContext = _readInquiryContextField(
-      yaml,
-      stateName: stateName,
-    );
+    final interaction = _readInteractionField(yaml, stateName: stateName);
+    final inquiryContext = _readInquiryContextField(yaml, stateName: stateName);
 
     return OperationalContract(
       state: state,
@@ -274,16 +274,18 @@ class OperationalContractLoader {
 
   CommandException _missingStateYaml(String stateName) {
     return CommandException(
-      code: 'MISSING_STATE_YAML',
-      message: "State instructions missing for '$stateName'. Run 'iq doctor --fix' to repair.",
+      id: 'missing-state-yaml',
+      message:
+          "State instructions missing for '$stateName'. Run 'iq doctor --fix' to repair.",
       exitCode: ExitCode.genericError,
     );
   }
 
   CommandException _malformedStateYaml(String stateName, String fieldName) {
     return CommandException(
-      code: 'MALFORMED_STATE_YAML',
-      message: "State file for '$stateName' is missing '$fieldName' field. Run 'iq doctor --fix' to repair.",
+      id: 'malformed-state-yaml',
+      message:
+          "State file for '$stateName' is missing '$fieldName' field. Run 'iq doctor --fix' to repair.",
       exitCode: ExitCode.genericError,
     );
   }

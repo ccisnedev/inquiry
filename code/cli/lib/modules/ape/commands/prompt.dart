@@ -34,29 +34,35 @@ class ApePromptInput extends Input {
     required this.workingDirectory,
   });
 
-  static final List<CliParam> params = [
-    CliParam.string(
-      'name',
-      abbr: 'n',
-      description: 'APE whose prompt to assemble (socrates, dewey, descartes, ada, darwin)',
-    ),
-    CliParam.string(
-      'state',
-      abbr: 's',
-      description: 'APE sub-state to assemble the prompt for',
-    ),
-  ];
+  static final CliContract contract = CliContract(
+    options: [
+      CliParam.string(
+        'name',
+        abbr: 'n',
+        required: false,
+        repeatable: false,
+        defaultValue: null,
+        description:
+            'APE whose prompt to assemble (socrates, dewey, descartes, ada, darwin)',
+      ),
+      CliParam.string(
+        'state',
+        abbr: 's',
+        required: false,
+        repeatable: false,
+        defaultValue: null,
+        description: 'APE sub-state to assemble the prompt for',
+      ),
+    ],
+  );
 
   factory ApePromptInput.fromCliRequest(CliRequest req) {
     return ApePromptInput(
-      name: req.flagString('name', aliases: const ['n']),
-      subState: req.flagString('state', aliases: const ['s']),
+      name: req.flagString('name'),
+      subState: req.flagString('state'),
       workingDirectory: Directory.current.path,
     );
   }
-
-  @override
-  List<CliParam> get schemaFields => params;
 
   @override
   Map<String, dynamic> toJson() => {
@@ -125,7 +131,7 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
   Future<ApePromptOutput> execute() async {
     if (input.name == null || input.name!.trim().isEmpty) {
       throw CommandException(
-        code: 'MISSING_NAME',
+        id: 'missing-name',
         message:
             'Missing required flag --name. Usage: iq ape prompt --name <name>',
         exitCode: ExitCode.validationFailed,
@@ -139,7 +145,7 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
     final yamlFile = File(yamlPath);
     if (!yamlFile.existsSync()) {
       throw CommandException(
-        code: 'APE_NOT_FOUND',
+        id: 'ape-not-found',
         message: 'No definition found for "${input.name!}" at $yamlPath',
         exitCode: ExitCode.notFound,
       );
@@ -149,7 +155,7 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
     final activeApes = _stateApes[currentState] ?? [];
     if (!activeApes.contains(input.name!)) {
       throw CommandException(
-        code: 'APE_NOT_ACTIVE',
+        id: 'ape-not-active',
         message:
             '"${input.name!}" is not active in state '
             '${currentState.value}. Active APEs: ${activeApes.join(', ')}',
@@ -217,7 +223,7 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
     final fragment = contract.promptFragments[promptFragmentId];
     if (fragment == null) {
       throw CommandException(
-        code: 'PROMPT_FRAGMENT_NOT_FOUND',
+        id: 'prompt-fragment-not-found',
         message: 'No prompt fragment found for "$promptFragmentId"',
         exitCode: ExitCode.notFound,
       );
@@ -268,10 +274,9 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
     final analyzeDir = 'cleanrooms/$branch/analyze/';
     final runTraceFile = '${cleanroomRoot}run_trace.yaml';
     const metricsFile = '.inquiry/metrics.yaml';
-    const failureTaxonomySurface =
-      'docs/spec/eval-model.md';
+    const failureTaxonomySurface = 'docs/spec/eval-model.md';
     const failureClassificationMode =
-      'classify repeated failures as model, host, inquiry_harness, or mixed';
+        'classify repeated failures as model, host, inquiry_harness, or mixed';
     final taskId = (inquiry.issue != null && inquiry.issue!.trim().isNotEmpty)
         ? inquiry.issue!.trim()
         : branch;
@@ -479,9 +484,9 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
             authorityRule:
                 'trust plan.md as the execution baseline unless implementation hits a concrete ambiguity that requires targeted retrieval',
           ),
-            'retrieval_trigger_rule':
+          'retrieval_trigger_rule':
               'retrieve targeted code or cycle-local evidence only when plan.md leaves a concrete implementation or verification ambiguity',
-            'reread_avoidance_rule':
+          'reread_avoidance_rule':
               'do not re-read broad analysis artifacts when plan.md already defines the bounded execution contract',
           ..._sensorContext(
             sensorPolicy: 'minimum-phase-stack',
@@ -519,10 +524,7 @@ class ApePromptCommand implements Query<ApePromptInput, ApePromptOutput> {
           ),
           ..._evalContext(
             evalPolicy: 'harness-minimum',
-            evalTargets: const [
-              'sensor_gate_failure',
-              'observability_failure',
-            ],
+            evalTargets: const ['sensor_gate_failure', 'observability_failure'],
             failureClassificationMode: failureClassificationMode,
             graderStack: const [
               'structure_grader',

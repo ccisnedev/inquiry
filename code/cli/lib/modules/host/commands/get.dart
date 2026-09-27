@@ -36,30 +36,37 @@ class HostGetInput extends Input {
   HostGetInput({this.host, this.configureOllama = false});
 
   factory HostGetInput.fromCliRequest(CliRequest req) => HostGetInput(
-        host: req.flagString('host'),
-        configureOllama: req.flagBool('configure-ollama'),
-      );
+    host: req.flagString('host'),
+    configureOllama: req.flagBool('configure-ollama'),
+  );
 
-  static final List<CliParam> params = [
-    CliParam.string(
-      'host',
-      allowed: ['opencode', 'claude'],
-      description:
-          'AI coding host to install into; defaults to every one detected',
-    ),
-    CliParam.boolean(
-      'configure-ollama',
-      description:
-          'OpenCode only: bake num_ctx variants of the configured Ollama models',
-    ),
-  ];
+  static final CliContract contract = CliContract(
+    options: [
+      CliParam.enumeration(
+        'host',
+        abbr: null,
+        required: false,
+        repeatable: false,
+        values: const ['opencode', 'claude'],
+        defaultValue: null,
+        description:
+            'AI coding host to install into; defaults to every one detected',
+      ),
+      CliParam.flag(
+        'configure-ollama',
+        abbr: null,
+        repeatable: false,
+        description:
+            'OpenCode only: bake num_ctx variants of the configured Ollama models',
+      ),
+    ],
+  );
 
   @override
-  List<CliParam> get schemaFields => params;
-
-  @override
-  Map<String, dynamic> toJson() =>
-      {'host': host, 'configureOllama': configureOllama};
+  Map<String, dynamic> toJson() => {
+    'host': host,
+    'configureOllama': configureOllama,
+  };
 }
 
 // ─── Output ─────────────────────────────────────────────────────────────────
@@ -129,7 +136,8 @@ class DeployToHost implements Step {
   Preview preview() => Preview(
     verb: 'deploy',
     target: 'host $host',
-    detail: 'the Inquiry agent and its skills, globally; skills no longer '
+    detail:
+        'the Inquiry agent and its skills, globally; skills no longer '
         'shipped are retired',
   );
 
@@ -159,7 +167,8 @@ class ConfigureOllama implements Step {
   Preview preview() => Preview(
     verb: 'configure',
     target: 'the Ollama models OpenCode uses',
-    detail: 'bakes num_ctx variants — shells out to `ollama create`, which is '
+    detail:
+        'bakes num_ctx variants — shells out to `ollama create`, which is '
         'slow and needs the daemon running',
   );
 
@@ -229,9 +238,7 @@ class HostGetCommand
     return [
       for (final host in targets) ...[
         DeployToHost(deployer: deployer, host: host),
-        if (host == 'opencode' &&
-            input.configureOllama &&
-            configurator != null)
+        if (host == 'opencode' && input.configureOllama && configurator != null)
           ConfigureOllama(configurator!),
       ],
     ];
@@ -246,8 +253,8 @@ class HostGetCommand
     retired: {
       for (final o in execution.outcomes)
         if (o.verb == 'deploy')
-          o.values['host'] as String:
-              (o.values['retired'] as List).cast<String>(),
+          o.values['host'] as String: (o.values['retired'] as List)
+              .cast<String>(),
     },
     ollamaLines: [
       for (final o in execution.outcomes)
