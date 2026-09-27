@@ -6,32 +6,27 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.27.0]
 
-### Changed — breaking
+### Changed (breaking)
 
-- **`version`, `doctor`, `upgrade` and `uninstall` are now `modular_cli_sdk`'s
-  own plugins** (`VersionPlugin`, `DoctorPlugin`, `InstallationPlugin`,
-  ccisnedev/inquiry#321), on `cli_router` 0.2.0 and `modular_cli_sdk` 0.7.0.
+- **`version` and `doctor` are now `modular_cli_sdk`'s own plugins**
+  (`VersionPlugin`, `DoctorPlugin`), on `cli_router` 0.2.0 and
+  `modular_cli_sdk` 0.7.0. Inquiry's own doctor checks (git, gh, gh auth,
+  `.inquiry/` init, bundled assets, available updates, per-host deployment)
+  are contributed to `DoctorPlugin` through `InquiryDoctorChecksPlugin`.
   `iq version` now prints `inquiry: <version>` instead of the bare version
-  string — a script that parsed the old bare output needs updating.
+  string, so a script that parsed the old bare output needs updating.
+  `upgrade` and `uninstall` remain Inquiry's own commands, unchanged in
+  behavior. The `fsm`, `ape`, `host` and `implementation` modules moved from
+  the old `CliParam` list schema to `cli_router` 0.2.0's `CliContract`.
 
-### Fixed
+### Known
 
-- **Windows uninstall could leave the binary behind and still report
-  success.** The CLI's own `scheduleDeletion` renamed the running exe to
-  `.bak` without checking the rename, waited on a `timeout /t 2` that exits
-  instantly with no console attached, then ran `rmdir /s /q` without checking
-  whether it worked either — while `iq uninstall` had already printed
-  "Inquiry uninstalled". `InstallationPlugin`'s `uninstall` route replaces all
-  of that: a worker process holds the exiting CLI's process handle and waits
-  for it to exit, with a timeout, before deleting anything; nothing is
-  deleted if the wait times out; and the reported result distinguishes
-  `removed` (actually gone) from `scheduled` (moved aside, deletion pending).
-- **The `iq.cmd` alias shim on Windows outlived `iq uninstall`.**
-  `InstallationPlugin` only removes an alias that resolves to the exact same
-  file as the executable (a symlink or hard link) — by design, since guessing
-  at an alias pointing elsewhere would be unsafe. Windows' `iq.cmd` is a
-  batch script calling `%~dp0inquiry.exe`, a distinct file, so the plugin
-  correctly leaves it alone; Inquiry's own uninstall cleanup now removes it.
+- **Windows uninstall can leave the binary behind while still reporting
+  success.** `scheduleDeletion` renames the running exe to `.bak` without
+  checking the rename, waits on a `timeout /t 2` that exits instantly with no
+  console attached, then runs `rmdir /s /q` without checking whether it
+  worked either, and `iq uninstall` has already printed "Inquiry
+  uninstalled" by then. Not fixed in this release.
 
 ## [0.26.1]
 
