@@ -13,8 +13,6 @@ import 'package:path/path.dart' as p;
 import 'assets.dart';
 import 'modules/global/global_builder.dart';
 import 'modules/global/commands/doctor.dart';
-import 'modules/global/commands/uninstall.dart';
-import 'modules/global/commands/upgrade.dart';
 import 'modules/global/doctor_checks_plugin.dart';
 import 'modules/fsm/fsm_builder.dart';
 import 'modules/ape/ape_builder.dart';
@@ -27,11 +25,6 @@ import 'src/version.dart';
 /// The name this CLI writes into every ledger row it creates, and the name the
 /// other consumers see when they meet one of its artifacts.
 const inquiryConsumerName = 'inquiry';
-
-/// This CLI's own GitHub repository: where `InstallationPlugin` looks for
-/// releases, and where [refreshAssetsAfterUpgrade] looks again for the
-/// archive asset that carries `assets/`.
-const _repo = 'ccisnedev/inquiry';
 
 /// `--help` / `-h` are NOT normalized here: the SDK routes every help request
 /// itself, including the focused `iq <command> --help`, which this could not.
@@ -66,27 +59,6 @@ Future<int> runInquiry(
           InquiryDoctorChecksPlugin(
             checks: InquiryDoctorChecks(assets: assets),
           ),
-        )
-        ..plugin(
-          InstallationPlugin(
-            config: const CliInstallationConfig(
-              repository: _repo,
-              tagPrefix: 'v',
-              executable: 'inquiry',
-              alias: 'iq',
-              // The bare compiled executable per platform, NOT the archive
-              // `install.ps1` / `install.sh` download for a first install:
-              // `InstallationPlugin` writes these bytes directly over the
-              // installed binary and deliberately never extracts an archive
-              // (see its own doc comment on why). `assets/` is refreshed
-              // separately, from that other archive, by
-              // `refreshAssetsAfterUpgrade` below.
-              assets: {
-                'windows': 'inquiry-windows-x64.exe',
-                'linux': 'inquiry-linux-x64',
-              },
-            ),
-          ),
         );
 
   final deployer = HostDeployer(
@@ -107,48 +79,7 @@ Future<int> runInquiry(
         '',
   );
 
-  // The install directory `InstallationPlugin`'s own `upgrade`/`uninstall`
-  // routes act on. Resolved the same way the CLI's own former `upgrade`/
-  // `uninstall` commands resolved it: two levels up from the running
-  // executable (`<installDir>/bin/inquiry[.exe]`).
-  final installDir = p.dirname(p.dirname(Platform.resolvedExecutable));
-
-  // Preserves Inquiry-specific behavior the plugins know nothing about:
-  // cleaning deployed hosts and this CLI's PATH entry before uninstall,
-  // and redeploying hosts with the freshly installed binary after upgrade.
-  // Gated on `--apply` so `--plan`/`--help` never trigger either side effect.
-  cli.use((next) {
-    return (req) async {
-      if (req.route.pattern == 'uninstall' && req.option('apply') != null) {
-        try {
-          runUninstallCleanup(deployer: cleaner, installDir: installDir);
-        } on Object catch (e) {
-          req.stderr.writeln('Could not clean up before uninstalling: $e');
-          return ExitCode.genericError;
-        }
-      }
-
-      final exitCode = await next(req);
-
-      if (req.route.pattern == 'upgrade' &&
-          req.option('apply') != null &&
-          exitCode == ExitCode.ok) {
-        await refreshAssetsAfterUpgrade(
-          installDir: installDir,
-          repo: _repo,
-          progress: req.stderr,
-        );
-        await redeployHostsAfterUpgrade(
-          installDir: installDir,
-          progress: req.stderr,
-        );
-      }
-
-      return exitCode;
-    };
-  });
-
-  cli.module('', (m) => buildGlobalModule(m, assets: assets));
+  cli.module('', (m) => buildGlobalModule(m, cleaner: cleaner, assets: assets));
   cli.module(
     'host',
     (m) => buildHostModule(m, deployer: deployer, cleaner: cleaner),
