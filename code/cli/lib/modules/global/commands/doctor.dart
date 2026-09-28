@@ -271,10 +271,19 @@ class InquiryDoctorChecks {
           '${missing.length} missing: ${missing.join(', ')}. '
           "'iq upgrade --apply' will not restore them if the binary is "
           'already current (it reports "Already on the latest version" and '
-          'does nothing). Reinstall instead: '
-          'irm https://inquiry.ccisne.dev/install.ps1 | iex',
+          'does nothing). Reinstall instead: $_reinstallRemedy',
     );
   }
+
+  /// The reinstall one-liner [checkAssets] points a user at, for the
+  /// platform this check is running on: `install.ps1` needs PowerShell and
+  /// refuses any OS but Windows, so a Linux machine needs `install.sh`
+  /// instead (`code/site/install.sh`), which fetches the latest release,
+  /// downloads `inquiry-linux-x64.tar.gz`, and extracts it, restoring
+  /// `assets/` along with everything else.
+  String get _reinstallRemedy => _operatingSystem == 'windows'
+      ? 'irm https://inquiry.ccisne.dev/install.ps1 | iex'
+      : 'curl -fsSL https://inquiry.ccisne.dev/install.sh | bash';
 
   /// The skills a deployed host is expected to carry.
   ///

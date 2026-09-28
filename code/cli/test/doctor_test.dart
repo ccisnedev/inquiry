@@ -342,41 +342,38 @@ void main() {
     // already implements: fetch the latest release, download
     // inquiry-linux-x64.tar.gz, and extract it, restoring assets/ along
     // with everything else.
-    test(
-      "checkAssets' reinstall remedy on Linux is install.sh, not the "
-      'Windows-only install.ps1 one-liner Bash cannot run',
-      () async {
-        final customDir = Directory.systemTemp.createTempSync(
-          'doctor_missing_assets_remedy_linux_',
-        );
-        addTearDown(() => customDir.deleteSync(recursive: true));
+    test("checkAssets' reinstall remedy on Linux is install.sh, not the "
+        'Windows-only install.ps1 one-liner Bash cannot run', () async {
+      final customDir = Directory.systemTemp.createTempSync(
+        'doctor_missing_assets_remedy_linux_',
+      );
+      addTearDown(() => customDir.deleteSync(recursive: true));
 
-        final checks = makeChecks(
-          assets: seedAssets(
-            customDir,
-            apes: ['socrates', 'descartes', 'ada', 'darwin'],
-          ),
-          operatingSystem: 'linux',
-        );
-        final result = await checks.checkAssets();
+      final checks = makeChecks(
+        assets: seedAssets(
+          customDir,
+          apes: ['socrates', 'descartes', 'ada', 'darwin'],
+        ),
+        operatingSystem: 'linux',
+      );
+      final result = await checks.checkAssets();
 
-        expect(result.status, CliCheckStatus.error);
-        expect(
-          result.message,
-          contains('curl -fsSL https://inquiry.ccisne.dev/install.sh | bash'),
-          reason:
-              'the full Linux one-liner must be present, not just a '
-              'substring like "install.sh"',
-        );
-        expect(
-          result.message,
-          isNot(contains('install.ps1')),
-          reason:
-              'a PowerShell-only command is not a remedy on a machine '
-              'running Bash',
-        );
-      },
-    );
+      expect(result.status, CliCheckStatus.error);
+      expect(
+        result.message,
+        contains('curl -fsSL https://inquiry.ccisne.dev/install.sh | bash'),
+        reason:
+            'the full Linux one-liner must be present, not just a '
+            'substring like "install.sh"',
+      );
+      expect(
+        result.message,
+        isNot(contains('install.ps1')),
+        reason:
+            'a PowerShell-only command is not a remedy on a machine '
+            'running Bash',
+      );
+    });
 
     test('checkGit reports error when git is missing', () async {
       final checks = makeChecks(runProcess: fakeRunner(gitFails: true));
