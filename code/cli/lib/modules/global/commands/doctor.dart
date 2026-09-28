@@ -13,10 +13,13 @@
 /// `DoctorPlugin`'s own `doctor` route always builds a parameterless
 /// `DoctorInput` (`toJson() => const {}`), and a contributed
 /// `CliDoctorCheck.run` takes no arguments either: there is no path left for
-/// a per-invocation flag to reach a check. `iq upgrade --apply` covers the
-/// same ground now — `refreshAssetsAfterUpgrade` (in `commands/upgrade.dart`)
-/// downloads the release archive again and replaces `assets/` wholesale, even
-/// when the binary itself is already current, so it doubles as a repair tool.
+/// a per-invocation flag to reach a check. `iq upgrade --apply` does NOT
+/// cover the same ground: `modular_cli_sdk`'s `UpgradeCommand` reports
+/// "Already on the latest version" and runs nothing at all once the binary
+/// matches the latest release tag, whether or not `assets/` on disk is
+/// intact. A damaged install has to be repaired by reinstalling from the
+/// site installer (`code/site/install.ps1` / `install.sh`), which always
+/// re-extracts everything, not by upgrading. See `checkAssets` below.
 library;
 
 import 'dart:io';
@@ -258,7 +261,10 @@ class InquiryDoctorChecks {
       status: CliCheckStatus.error,
       message:
           '${missing.length} missing: ${missing.join(', ')}. '
-          "Run 'iq upgrade --apply' to restore them",
+          "'iq upgrade --apply' will not restore them if the binary is "
+          'already current (it reports "Already on the latest version" and '
+          'does nothing). Reinstall instead: '
+          'irm https://inquiry.ccisne.dev/install.ps1 | iex',
     );
   }
 

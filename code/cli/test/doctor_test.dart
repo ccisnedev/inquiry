@@ -317,7 +317,13 @@ void main() {
         final result = await checks.checkAssets();
 
         expect(result.status, CliCheckStatus.error);
-        expect(result.message, isNot(contains('iq upgrade')));
+        expect(
+          result.message,
+          isNot(contains("Run 'iq upgrade")),
+          reason:
+              'must not tell the user to run a command that will do '
+              'nothing once the binary is already current',
+        );
         expect(
           result.message,
           contains('install.ps1'),
