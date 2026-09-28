@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:inquiry_cli/assets.dart';
 import 'package:inquiry_cli/modules/global/commands/doctor.dart';
-import 'package:inquiry_cli/src/version_check.dart';
 import 'package:modular_cli_sdk/modular_cli_sdk.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -231,8 +230,6 @@ void main() {
         inquiryVersionOverride: version,
         fileSystemOps: fs ?? allPassFs(resolvedWd, homeDir, deployedSkills),
         assets: assets ?? testAssets,
-        versionChecker: ({required String currentVersion}) async =>
-            const VersionCheckResult(updateAvailable: false),
       );
     }
 
@@ -362,34 +359,6 @@ void main() {
 
       expect(result.status, CliCheckStatus.error);
       expect(result.message, contains("Run 'inquiry init'"));
-    });
-
-    test(
-      'checkUpdate reports a warning, never an error, when one is available',
-      () async {
-        final checks = InquiryDoctorChecks(
-          runProcess: fakeRunner(),
-          inquiryVersionOverride: '0.0.9',
-          fileSystemOps: allPassFs(workingDir, homeDir, deployedSkills),
-          assets: testAssets,
-          versionChecker: ({required String currentVersion}) async =>
-              const VersionCheckResult(
-                updateAvailable: true,
-                latestVersion: '0.0.10',
-              ),
-        );
-        final result = await checks.checkUpdate();
-
-        expect(result.status, CliCheckStatus.warning);
-        expect(result.message, contains('0.0.10'));
-      },
-    );
-
-    test('checkUpdate reports ok when already up to date', () async {
-      final checks = makeChecks();
-      final result = await checks.checkUpdate();
-
-      expect(result.status, CliCheckStatus.ok);
     });
 
     group('Host verification', () {

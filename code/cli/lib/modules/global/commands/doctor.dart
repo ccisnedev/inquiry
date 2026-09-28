@@ -1,7 +1,14 @@
 /// Inquiry's own doctor checks — prerequisites and host deployment.
 ///
-/// Checks: inquiry version, git, gh, gh auth, .inquiry/ init, internal assets,
-/// update availability, per-host deployment, OpenCode/Ollama context.
+/// Checks: inquiry version, git, gh, gh auth, .inquiry/ init, internal
+/// assets, per-host deployment, OpenCode/Ollama context. Update availability
+/// is NOT one of these: it used to be (`checkUpdate`, removed), but
+/// `modular_cli_sdk`'s own `InstallationPlugin` now contributes a `release`
+/// doctor check that covers the same ground and, unlike `checkUpdate`
+/// (backed by `src/version_check.dart`'s silent-on-failure
+/// `checkLatestVersion`), actually reports a failed lookup instead of
+/// reporting "up to date" regardless of whether the check ran at all. See
+/// `docs/installation-parity.md` in `modular_cli_sdk`.
 ///
 /// These are contributed to `modular_cli_sdk`'s `DoctorPlugin` extension
 /// point (`DoctorPlugin.extensionPoint`, `'doctor.checks'`) by
@@ -29,7 +36,6 @@ import 'package:path/path.dart' as p;
 
 import '../../../assets.dart';
 import '../../../src/version.dart' as version_lib;
-import '../../../src/version_check.dart';
 import '../../../hosts/all_adapters.dart';
 import '../../../hosts/host_adapter.dart';
 import '../../../hosts/ollama_context.dart';
@@ -139,8 +145,6 @@ class InquiryDoctorChecks {
   final FileSystemOps _fileSystem;
   final Assets? _assets;
   final List<HostAdapter> activeAdapters;
-  final Future<VersionCheckResult> Function({required String currentVersion})?
-  _versionChecker;
 
   /// Current Inquiry version (injected for testability).
   final String inquiryVersion;
@@ -151,13 +155,10 @@ class InquiryDoctorChecks {
     FileSystemOps? fileSystemOps,
     Assets? assets,
     List<HostAdapter>? activeAdapters,
-    Future<VersionCheckResult> Function({required String currentVersion})?
-    versionChecker,
   }) : _runProcess = runProcess ?? Process.run,
        _fileSystem = fileSystemOps ?? RealFileSystemOps(),
        _assets = assets,
        activeAdapters = activeAdapters ?? deployAdapters,
-       _versionChecker = versionChecker,
        inquiryVersion = inquiryVersionOverride ?? version_lib.inquiryVersion;
 
   Future<CliCheckResult> checkInquiryVersion() async =>
@@ -266,36 +267,6 @@ class InquiryDoctorChecks {
           'does nothing). Reinstall instead: '
           'irm https://inquiry.ccisne.dev/install.ps1 | iex',
     );
-  }
-
-  /// Checks if a newer version is available. Never fails `doctor`: reported
-  /// as [CliCheckStatus.warning] at most, matching the old check's
-  /// non-blocking behavior.
-  Future<CliCheckResult> checkUpdate() async {
-    try {
-      final checker =
-          _versionChecker ??
-          ({required String currentVersion}) =>
-              checkLatestVersion(currentVersion: currentVersion);
-      final result = await checker(currentVersion: inquiryVersion);
-      if (result.updateAvailable && result.latestVersion != null) {
-        return CliCheckResult(
-          status: CliCheckStatus.warning,
-          message:
-              "${result.latestVersion} available. Run 'iq upgrade --apply' "
-              'to update',
-        );
-      }
-      return const CliCheckResult(
-        status: CliCheckStatus.ok,
-        message: 'up to date',
-      );
-    } on Object catch (e) {
-      return CliCheckResult(
-        status: CliCheckStatus.warning,
-        message: 'could not check for updates: $e',
-      );
-    }
   }
 
   /// The skills a deployed host is expected to carry.

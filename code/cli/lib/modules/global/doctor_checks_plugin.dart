@@ -42,7 +42,10 @@ class InquiryDoctorChecksPlugin implements CliPlugin {
     add('gh auth', checks.checkGhAuth);
     add('inquiry init', checks.checkInit);
     add('assets', checks.checkAssets);
-    add('update', checks.checkUpdate);
+    // No 'update' check here: `modular_cli_sdk`'s `InstallationPlugin`
+    // (see `inquiry_cli.dart`) contributes its own `release` doctor check,
+    // which covers the same ground without swallowing a failed lookup the
+    // way this CLI's own version_check.dart-backed check used to.
     for (final adapter in checks.activeAdapters) {
       add('host: ${adapter.name}', () => checks.checkHost(adapter));
     }
