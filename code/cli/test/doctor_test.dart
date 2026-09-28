@@ -223,6 +223,7 @@ void main() {
       MockFileSystemOps? fs,
       Assets? assets,
       String? wd,
+      String? operatingSystem,
     }) {
       final resolvedWd = wd ?? workingDir;
       return InquiryDoctorChecks(
@@ -230,6 +231,7 @@ void main() {
         inquiryVersionOverride: version,
         fileSystemOps: fs ?? allPassFs(resolvedWd, homeDir, deployedSkills),
         assets: assets ?? testAssets,
+        operatingSystemOverride: operatingSystem,
       );
     }
 
@@ -310,6 +312,7 @@ void main() {
             customDir,
             apes: ['socrates', 'descartes', 'ada', 'darwin'],
           ),
+          operatingSystem: 'windows',
         );
         final result = await checks.checkAssets();
 
@@ -323,10 +326,54 @@ void main() {
         );
         expect(
           result.message,
-          contains('install.ps1'),
+          contains('irm https://inquiry.ccisne.dev/install.ps1 | iex'),
           reason:
               'reinstalling from the site installer is what actually '
-              're-extracts assets/, unlike a no-op upgrade',
+              're-extracts assets/, unlike a no-op upgrade; the full '
+              'one-liner must be present, not just the file name',
+        );
+      },
+    );
+
+    // On Linux, `iq doctor` runs under Bash: a remedy line copy-pasted from
+    // the Windows message (`irm ... | iex`, PowerShell syntax) cannot run,
+    // and install.ps1 itself refuses any OS but Windows. The remedy must be
+    // the Linux one-liner instead, which install.sh (code/site/install.sh)
+    // already implements: fetch the latest release, download
+    // inquiry-linux-x64.tar.gz, and extract it, restoring assets/ along
+    // with everything else.
+    test(
+      "checkAssets' reinstall remedy on Linux is install.sh, not the "
+      'Windows-only install.ps1 one-liner Bash cannot run',
+      () async {
+        final customDir = Directory.systemTemp.createTempSync(
+          'doctor_missing_assets_remedy_linux_',
+        );
+        addTearDown(() => customDir.deleteSync(recursive: true));
+
+        final checks = makeChecks(
+          assets: seedAssets(
+            customDir,
+            apes: ['socrates', 'descartes', 'ada', 'darwin'],
+          ),
+          operatingSystem: 'linux',
+        );
+        final result = await checks.checkAssets();
+
+        expect(result.status, CliCheckStatus.error);
+        expect(
+          result.message,
+          contains('curl -fsSL https://inquiry.ccisne.dev/install.sh | bash'),
+          reason:
+              'the full Linux one-liner must be present, not just a '
+              'substring like "install.sh"',
+        );
+        expect(
+          result.message,
+          isNot(contains('install.ps1')),
+          reason:
+              'a PowerShell-only command is not a remedy on a machine '
+              'running Bash',
         );
       },
     );

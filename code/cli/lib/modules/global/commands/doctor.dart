@@ -149,17 +149,24 @@ class InquiryDoctorChecks {
   /// Current Inquiry version (injected for testability).
   final String inquiryVersion;
 
+  /// `Platform.operatingSystem` ('windows', 'linux', ...), injected so
+  /// [checkAssets]'s reinstall remedy can be tested for both platforms
+  /// without depending on the OS the test suite happens to run on.
+  final String _operatingSystem;
+
   InquiryDoctorChecks({
     ProcessRunner? runProcess,
     String? inquiryVersionOverride,
     FileSystemOps? fileSystemOps,
     Assets? assets,
     List<HostAdapter>? activeAdapters,
+    String? operatingSystemOverride,
   }) : _runProcess = runProcess ?? Process.run,
        _fileSystem = fileSystemOps ?? RealFileSystemOps(),
        _assets = assets,
        activeAdapters = activeAdapters ?? deployAdapters,
-       inquiryVersion = inquiryVersionOverride ?? version_lib.inquiryVersion;
+       inquiryVersion = inquiryVersionOverride ?? version_lib.inquiryVersion,
+       _operatingSystem = operatingSystemOverride ?? Platform.operatingSystem;
 
   Future<CliCheckResult> checkInquiryVersion() async =>
       CliCheckResult(status: CliCheckStatus.ok, message: inquiryVersion);
