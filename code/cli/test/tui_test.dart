@@ -1,7 +1,7 @@
 import 'package:test/test.dart';
 
 import 'package:inquiry_cli/modules/global/commands/tui.dart';
-import 'package:inquiry_cli/modules/global/commands/version.dart';
+import 'package:inquiry_cli/src/version.dart';
 import 'package:inquiry_cli/src/version_check.dart';
 
 void main() {

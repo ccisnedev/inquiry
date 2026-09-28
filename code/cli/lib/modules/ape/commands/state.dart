@@ -23,14 +23,9 @@ class ApeStateInput extends Input {
     return ApeStateInput(workingDirectory: Directory.current.path);
   }
 
-    /// Declares an EMPTY contract: this command accepts no option at all, so any
-  /// option passed to it is refused. Omitting `params` would mean "declares
-  /// nothing" — which is how `iq init --host claude` used to run, doing nothing
-  /// the flag implied.
-  static const List<CliParam> params = [];
-
-  @override
-  List<CliParam> get schemaFields => params;
+  /// Declares an EMPTY contract: this command accepts no option at all, so any
+  /// option passed to it is refused.
+  static const CliContract contract = CliContract.none;
 
   @override
   Map<String, dynamic> toJson() => {'workingDirectory': workingDirectory};
@@ -43,21 +38,13 @@ class ApeStateOutput extends Output {
   final String? apeState;
   final List<Map<String, String>> transitions;
 
-  ApeStateOutput({
-    this.apeName,
-    this.apeState,
-    this.transitions = const [],
-  });
+  ApeStateOutput({this.apeName, this.apeState, this.transitions = const []});
 
   @override
   Map<String, dynamic> toJson() {
     if (apeName == null) return {'ape': null};
     return {
-      'ape': {
-        'name': apeName,
-        'state': apeState,
-        'transitions': transitions,
-      },
+      'ape': {'name': apeName, 'state': apeState, 'transitions': transitions},
     };
   }
 
@@ -106,24 +93,20 @@ class ApeStateCommand implements Query<ApeStateInput, ApeStateOutput> {
 
     // If APE is _DONE, no transitions available
     if (apeState == '_DONE') {
-      return ApeStateOutput(
-        apeName: inquiryState.apeName,
-        apeState: '_DONE',
-      );
+      return ApeStateOutput(apeName: inquiryState.apeName, apeState: '_DONE');
     }
 
     // Load APE YAML to get valid transitions
     final yamlPath = _resolveApePath(inquiryState.apeName!);
     final yamlFile = File(yamlPath);
     if (!yamlFile.existsSync()) {
-      return ApeStateOutput(
-        apeName: inquiryState.apeName,
-        apeState: apeState,
-      );
+      return ApeStateOutput(apeName: inquiryState.apeName, apeState: apeState);
     }
 
     final definition = ApeDefinition.parse(yamlFile.readAsStringSync());
-    final currentApeState = definition.findState(apeState ?? definition.initialState);
+    final currentApeState = definition.findState(
+      apeState ?? definition.initialState,
+    );
 
     final transitions = <Map<String, String>>[];
     if (currentApeState != null) {

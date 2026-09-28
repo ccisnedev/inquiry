@@ -16,6 +16,7 @@ void buildImplementationModule(ModuleBuilder m, {Assets? assets}) {
     ),
     description:
         'Start implementing an issue: create the linked branch, scaffold the cleanroom, and enter ANALYZE',
-    params: ImplementationStartInput.params,
+    globals: true,
+    contract: ImplementationStartInput.contract,
   );
 }

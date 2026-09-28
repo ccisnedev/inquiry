@@ -4,6 +4,89 @@ All notable changes to this project will be documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.27.0]
+
+### Changed (breaking)
+
+- **`version` and `doctor` are now `modular_cli_sdk`'s own plugins**
+  (`VersionPlugin`, `DoctorPlugin`), on `cli_router` 0.2.0 and
+  `modular_cli_sdk` 0.8.0. Inquiry's own doctor checks (git, gh, gh auth,
+  `.inquiry/` init, bundled assets, per-host deployment) are contributed to
+  `DoctorPlugin` through `InquiryDoctorChecksPlugin`. `iq version` now prints
+  `inquiry: <version>` instead of the bare version string, so a script that
+  parsed the old bare output needs updating. The `fsm`, `ape`, `host` and
+  `implementation` modules moved from the old `CliParam` list schema to
+  `cli_router` 0.2.0's `CliContract`.
+
+- **`upgrade` and `uninstall` are now `modular_cli_sdk`'s `InstallationPlugin`
+  (0.8.0), not Inquiry's own commands.** The plugin was extracted from
+  macss's and this CLI's own prior implementations with confirmed parity
+  (see `docs/installation-parity.md` in `modular_cli_sdk`). Inquiry's own
+  extra steps (redeploying every host after upgrade, cleaning deployed hosts
+  and removing the repo-scoped agent file before uninstall) are supplied
+  through `CliInstallationConfig.postUpgradeSteps`/`preUninstallSteps`,
+  unchanged in behavior. `verifyAfterInstall` is off, since Inquiry's own
+  post-install check (`RedeployHosts`) is lenient by design (#300) and must
+  not run twice back to back with the plugin's own hard-fail inline check.
+  `doctor` gains a `release` check from the plugin, which reports a newer
+  version the same way the removed `update` check did, except that a failed
+  lookup is now reported instead of silently read as "up to date" (see
+  Fixed, below).
+
+### Fixed
+
+- **`iq doctor`'s own update check was silent on a failed lookup.**
+  `checkUpdate` was backed by `src/version_check.dart`'s
+  `checkLatestVersion`, explicitly silent on network failures: a lookup that
+  never ran looked identical to "no update available". Removed in favor of
+  `modular_cli_sdk`'s own `release` doctor check (see above), which reports
+  the failure instead of hiding it.
+
+- **`checkAssets` told a user to run `iq upgrade --apply` to restore missing
+  assets, which does nothing once the binary is already on the latest
+  version.** `UpgradeCommand` reports "Already on the latest version" and
+  runs no steps at all in that case, regardless of whether `assets/` on disk
+  is intact. The message now points at reinstalling from the site installer
+  instead, which always re-extracts everything, and the reinstall one-liner
+  is now platform-aware: Windows still gets `install.ps1`, Linux gets
+  `install.sh` (the earlier fix always named `install.ps1`, a PowerShell
+  command Bash cannot run, and `install.ps1` itself refuses any OS but
+  Windows).
+
+### Changed (breaking)
+
+- **`iq upgrade --apply --autoapprove --json`'s shape changed for a failed
+  host redeploy.** Before this release, a failed redeploy put the result at
+  the top level: `{"upgraded": true, "deployed": false, ...}`. Adopting
+  `modular_cli_sdk`'s `InstallationPlugin` moves it under `extra`, the SDK's
+  own contract for `postUpgradeSteps` outcomes: `{"upgraded": true, "extra":
+  [{"verb": "deploy", "target": "every host on this machine", "detail":
+  "...", "values": {"deployed": false}}]}`. A `--json` consumer that read
+  the old top-level `deployed` field needs to read
+  `extra[].values.deployed` instead. This is the SDK's own result contract,
+  not Inquiry-specific, and is not worked around here.
+
+### Known
+
+- **Windows uninstall can leave the binary behind while still reporting
+  success.** `scheduleDeletion` renames the running exe to `.bak` without
+  checking the rename, waits on a `timeout /t 2` that exits instantly with no
+  console attached, then runs `rmdir /s /q` without checking whether it
+  worked either, and `iq uninstall` has already printed "Inquiry
+  uninstalled" by then. `modular_cli_sdk` 0.8.0's `DeleteInstallation` is a
+  verbatim port of this same logic, so adopting it did not fix this. Not
+  fixed in this release.
+
+- **`InstallationPlugin` construction crashes on an OS with no configured
+  release asset.** `PlatformOps.current` throws `UnsupportedError` the
+  moment `config.assets[Platform.operatingSystem]` is missing, and
+  `InstallationPlugin`'s constructor calls it eagerly, unconditionally, for
+  every command this CLI runs, not only `upgrade`/`uninstall`. On macOS
+  (unconfigured in Inquiry's `assets` map, since macOS is unsupported by
+  both CLIs already), even `iq --version` crashes. This is a
+  `modular_cli_sdk` bug (eager rather than lazy construction), scheduled to
+  be fixed in 0.8.1, and is not worked around in Inquiry.
+
 ## [0.26.1]
 
 ### Fixed

@@ -24,14 +24,9 @@ class FsmStateInput extends Input {
     return FsmStateInput(workingDirectory: Directory.current.path);
   }
 
-    /// Declares an EMPTY contract: this command accepts no option at all, so any
-  /// option passed to it is refused. Omitting `params` would mean "declares
-  /// nothing" — which is how `iq init --host claude` used to run, doing nothing
-  /// the flag implied.
-  static const List<CliParam> params = [];
-
-  @override
-  List<CliParam> get schemaFields => params;
+  /// Declares an EMPTY contract: this command accepts no option at all, so any
+  /// option passed to it is refused.
+  static const CliContract contract = CliContract.none;
 
   @override
   Map<String, dynamic> toJson() => {'workingDirectory': workingDirectory};
@@ -117,17 +112,23 @@ class FsmStateCommand implements Query<FsmStateInput, FsmStateOutput> {
   @override
   Future<FsmStateOutput> execute() async {
     final inquiry = InquiryState.load(input.workingDirectory);
-    final currentState = FsmState.fromValue(
-      inquiry.state.trim().toUpperCase(),
-    );
+    final currentState = FsmState.fromValue(inquiry.state.trim().toUpperCase());
 
     final contractPath = _assets != null
         ? _assets.path('fsm/transition_contract.yaml')
-        : p.join(input.workingDirectory, 'assets', 'fsm', 'transition_contract.yaml');
+        : p.join(
+            input.workingDirectory,
+            'assets',
+            'fsm',
+            'transition_contract.yaml',
+          );
     final contract = parseFsmContract(File(contractPath).readAsStringSync());
 
     final validTransitions = _computeTransitions(
-      contract, currentState, input.workingDirectory);
+      contract,
+      currentState,
+      input.workingDirectory,
+    );
     final activeApes = _computeApes(currentState);
     final operationalContract = _loadOperationalContract(currentState);
     final instructions = operationalContract.instructions;
@@ -203,9 +204,7 @@ class FsmStateCommand implements Query<FsmStateInput, FsmStateOutput> {
     for (final event in contract.events) {
       final transition = contract.transitions[(state, event)];
       if (transition != null && transition.allowed && transition.to != null) {
-        result.add({
-          'event': event.value,
-        });
+        result.add({'event': event.value});
       }
     }
 
@@ -249,12 +248,22 @@ class FsmStateCommand implements Query<FsmStateInput, FsmStateOutput> {
   }
 
   static const _stateApes = <FsmState, List<Map<String, String>>>{
-    FsmState.idle: [{'name': 'dewey', 'status': 'RUNNING'}],
-    FsmState.analyze: [{'name': 'socrates', 'status': 'RUNNING'}],
-    FsmState.plan: [{'name': 'descartes', 'status': 'RUNNING'}],
-    FsmState.execute: [{'name': 'ada', 'status': 'RUNNING'}],
+    FsmState.idle: [
+      {'name': 'dewey', 'status': 'RUNNING'},
+    ],
+    FsmState.analyze: [
+      {'name': 'socrates', 'status': 'RUNNING'},
+    ],
+    FsmState.plan: [
+      {'name': 'descartes', 'status': 'RUNNING'},
+    ],
+    FsmState.execute: [
+      {'name': 'ada', 'status': 'RUNNING'},
+    ],
     FsmState.end: [],
-    FsmState.evolution: [{'name': 'darwin', 'status': 'RUNNING'}],
+    FsmState.evolution: [
+      {'name': 'darwin', 'status': 'RUNNING'},
+    ],
   };
 
   List<Map<String, String>> _computeApes(FsmState state) {

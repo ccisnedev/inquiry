@@ -1,17 +1,41 @@
-/// Doctor command — verifies prerequisites and host deployment.
+/// Inquiry's own doctor checks — prerequisites and host deployment.
 ///
-/// Checks: inquiry version, git, gh, gh auth, .inquiry/ init, host deployment.
+/// Checks: inquiry version, git, gh, gh auth, .inquiry/ init, internal
+/// assets, per-host deployment, OpenCode/Ollama context. Update availability
+/// is NOT one of these: it used to be (`checkUpdate`, removed), but
+/// `modular_cli_sdk`'s own `InstallationPlugin` now contributes a `release`
+/// doctor check that covers the same ground and, unlike `checkUpdate`
+/// (backed by `src/version_check.dart`'s silent-on-failure
+/// `checkLatestVersion`), actually reports a failed lookup instead of
+/// reporting "up to date" regardless of whether the check ran at all. See
+/// `docs/installation-parity.md` in `modular_cli_sdk`.
+///
+/// These are contributed to `modular_cli_sdk`'s `DoctorPlugin` extension
+/// point (`DoctorPlugin.extensionPoint`, `'doctor.checks'`) by
+/// [InquiryDoctorChecksPlugin] in `doctor_checks_plugin.dart`, rather than
+/// registering a `doctor` route of Inquiry's own (ccisnedev/inquiry#321).
+///
+/// **`--fix` is deliberately not ported.** The old `DoctorCommand` could
+/// download and extract missing assets in place when called with `--fix`.
+/// `DoctorPlugin`'s own `doctor` route always builds a parameterless
+/// `DoctorInput` (`toJson() => const {}`), and a contributed
+/// `CliDoctorCheck.run` takes no arguments either: there is no path left for
+/// a per-invocation flag to reach a check. `iq upgrade --apply` does NOT
+/// cover the same ground: `modular_cli_sdk`'s `UpgradeCommand` reports
+/// "Already on the latest version" and runs nothing at all once the binary
+/// matches the latest release tag, whether or not `assets/` on disk is
+/// intact. A damaged install has to be repaired by reinstalling from the
+/// site installer (`code/site/install.ps1` / `install.sh`), which always
+/// re-extracts everything, not by upgrading. See `checkAssets` below.
 library;
 
 import 'dart:io';
 
-import 'package:cli_router/cli_router.dart';
 import 'package:modular_cli_sdk/modular_cli_sdk.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../assets.dart';
 import '../../../src/version.dart' as version_lib;
-import '../../../src/version_check.dart';
 import '../../../hosts/all_adapters.dart';
 import '../../../hosts/host_adapter.dart';
 import '../../../hosts/ollama_context.dart';
@@ -25,31 +49,6 @@ typedef ProcessRunner =
       List<String> arguments, {
       String? workingDirectory,
     });
-
-/// Result of a single prerequisite check.
-class DoctorCheck {
-  final String name;
-  final bool passed;
-  final String? version;
-  final String? error;
-  final String? remediation;
-
-  DoctorCheck({
-    required this.name,
-    required this.passed,
-    this.version,
-    this.error,
-    this.remediation,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'passed': passed,
-    if (version != null) 'version': version,
-    if (error != null) 'error': error,
-    if (remediation != null) 'remediation': remediation,
-  };
-}
 
 /// Result of checking a host's deployment status.
 class HostCheck {
@@ -99,123 +98,6 @@ class HostCheck {
   };
 }
 
-/// Input for the doctor command.
-///
-/// Accepts an optional `--fix` flag to auto-remediate failures.
-class DoctorInput extends Input {
-  final bool fix;
-
-  DoctorInput({this.fix = false});
-
-  static final List<CliParam> params = [
-    CliParam.boolean(
-      'fix',
-      description: 'Re-download the internal assets when they are missing',
-    ),
-  ];
-
-  factory DoctorInput.fromCliRequest(CliRequest req) =>
-      DoctorInput(fix: req.flagBool('fix'));
-
-  @override
-  List<CliParam> get schemaFields => params;
-
-  @override
-  Map<String, dynamic> toJson() => {'fix': fix};
-}
-
-/// Output for the doctor command.
-class DoctorOutput extends Output {
-  final List<DoctorCheck> checks;
-  final List<HostCheck> hostChecks;
-  final bool passed;
-
-  DoctorOutput({
-    required this.checks,
-    this.hostChecks = const [],
-    required this.passed,
-  });
-
-  @override
-  Map<String, dynamic> toJson() => {
-    'checks': checks.map((c) => c.toJson()).toList(),
-    'hostChecks': hostChecks.map((c) => c.toJson()).toList(),
-    'passed': passed,
-  };
-
-  @override
-  int get exitCode => passed ? ExitCode.ok : ExitCode.genericError;
-
-  /// Returns formatted checkmarks for text mode (like flutter doctor).
-  @override
-  String? toText() {
-    final buffer = StringBuffer('Checking prerequisites...\n');
-    for (final check in checks) {
-      final icon = check.passed ? '✓' : '✗';
-      final suffix = check.version ?? check.error ?? '';
-      if (suffix.isNotEmpty) {
-        buffer.writeln('  $icon ${check.name} $suffix');
-      } else {
-        buffer.writeln('  $icon ${check.name}');
-      }
-      if (!check.passed && check.remediation != null) {
-        buffer.writeln("    → ${check.remediation}");
-      }
-    }
-
-    if (hostChecks.isNotEmpty) {
-      buffer.writeln('Checking hosts...');
-      for (final tc in hostChecks) {
-        if (tc.error != null) {
-          buffer.writeln('  ✗ ${tc.hostName}: ${tc.error}');
-        } else if (!tc.installed) {
-          // The host tool is not on this machine. Nothing to deploy into, and
-          // nothing wrong: a machine may carry the CLI and no AI assistant.
-          buffer.writeln('  - ${tc.hostName}: not installed');
-        } else if (!tc.active) {
-          // Not the active host — informational, not a failure.
-          buffer.writeln('  - ${tc.hostName}: not deployed (inactive)');
-        } else if (tc.passed) {
-          // Skills are no longer Inquiry's to report here: it ships none, and
-          // what is deployed on this machine is `iq skill doctor`'s answer.
-          buffer.writeln('  ✓ ${tc.hostName}: agent deployed');
-        } else {
-          if (!tc.agentExists) {
-            buffer.writeln('  ✗ ${tc.hostName}: agent not deployed');
-            buffer.writeln(
-              "    → Run 'iq host get --host ${tc.hostName} --apply' to install the agent",
-            );
-          } else {
-            buffer.writeln('  ✓ ${tc.hostName}: agent deployed');
-          }
-          if (tc.missingSkills.isNotEmpty) {
-            buffer.writeln(
-              '  ✗ ${tc.hostName}: missing skills: '
-              '${tc.missingSkills.join(', ')}',
-            );
-            // Only suggest host get when agent is already deployed
-            if (tc.agentExists) {
-              buffer.writeln(
-                "    → Run 'iq host get --host ${tc.hostName} --apply' to deploy skills",
-              );
-            }
-          }
-        }
-      }
-      if (!hostChecks.any((hc) => hc.installed)) {
-        buffer.writeln('  - no AI coding host installed on this machine');
-      } else if (!hostChecks.any((hc) => hc.active)) {
-        buffer.writeln('  ✗ no host deployed');
-        buffer.writeln("    → Run 'iq host get --apply'");
-      }
-    }
-
-    buffer.writeln();
-    buffer.write(passed ? 'All checks passed.' : 'Some checks failed.');
-    return buffer.toString();
-  }
-}
-
 /// Abstraction for filesystem operations (testable).
 abstract class FileSystemOps {
   bool fileExists(String path);
@@ -249,199 +131,159 @@ class RealFileSystemOps implements FileSystemOps {
   }
 }
 
-/// Command that verifies all prerequisites and host deployment.
-class DoctorCommand implements Query<DoctorInput, DoctorOutput> {
-  @override
-  final DoctorInput input;
-
+/// Inquiry's own prerequisite and host-deployment checks, each exposed as a
+/// method returning a [CliCheckResult] so [InquiryDoctorChecksPlugin] can
+/// contribute them independently to `doctor.checks`.
+///
+/// Every check here runs on its own: unlike the old `DoctorCommand.execute()`,
+/// there is no early return on a failing `git`/`gh` check — `DoctorQuery`
+/// (in `modular_cli_sdk`) runs every contributed check unconditionally, which
+/// is more informative (a missing `gh` no longer hides whether `git` is also
+/// missing) at the cost of that early-exit behavior.
+class InquiryDoctorChecks {
   final ProcessRunner _runProcess;
   final FileSystemOps _fileSystem;
   final Assets? _assets;
-  final List<HostAdapter> _activeAdapters;
-  final Future<VersionCheckResult> Function({required String currentVersion})?
-      _versionChecker;
+  final List<HostAdapter> activeAdapters;
 
   /// Current Inquiry version (injected for testability).
   final String inquiryVersion;
 
-  DoctorCommand(
-    this.input, {
+  /// `Platform.operatingSystem` ('windows', 'linux', ...), injected so
+  /// [checkAssets]'s reinstall remedy can be tested for both platforms
+  /// without depending on the OS the test suite happens to run on.
+  final String _operatingSystem;
+
+  InquiryDoctorChecks({
     ProcessRunner? runProcess,
     String? inquiryVersionOverride,
     FileSystemOps? fileSystemOps,
     Assets? assets,
     List<HostAdapter>? activeAdapters,
-    Future<VersionCheckResult> Function({required String currentVersion})?
-        versionChecker,
+    String? operatingSystemOverride,
   }) : _runProcess = runProcess ?? Process.run,
        _fileSystem = fileSystemOps ?? RealFileSystemOps(),
        _assets = assets,
-       _activeAdapters = activeAdapters ?? deployAdapters,
-       _versionChecker = versionChecker,
-       inquiryVersion = inquiryVersionOverride ?? version_lib.inquiryVersion;
+       activeAdapters = activeAdapters ?? deployAdapters,
+       inquiryVersion = inquiryVersionOverride ?? version_lib.inquiryVersion,
+       _operatingSystem = operatingSystemOverride ?? Platform.operatingSystem;
 
-  @override
-  String? validate() => null;
+  Future<CliCheckResult> checkInquiryVersion() async =>
+      CliCheckResult(status: CliCheckStatus.ok, message: inquiryVersion);
 
-  @override
-  Future<DoctorOutput> execute() async {
-    final checks = <DoctorCheck>[];
-    var prereqPassed = true;
+  Future<CliCheckResult> checkGit() => _checkCommand(
+    executable: 'git',
+    arguments: ['--version'],
+    versionExtractor: _extractGitVersion,
+  );
 
-    // Check 1: APE version (always passes, internal)
-    checks.add(DoctorCheck(name: 'inquiry', passed: true, version: inquiryVersion));
+  Future<CliCheckResult> checkGh() => _checkCommand(
+    executable: 'gh',
+    arguments: ['--version'],
+    versionExtractor: _extractGhVersion,
+  );
 
-    // Check 2: git --version
-    final gitCheck = await _checkCommand(
-      name: 'git',
-      executable: 'git',
-      arguments: ['--version'],
-      versionExtractor: _extractGitVersion,
-    );
-    checks.add(gitCheck);
-    if (!gitCheck.passed) {
-      prereqPassed = false;
-      return DoctorOutput(checks: checks, passed: false);
-    }
+  Future<CliCheckResult> checkGhAuth() => _checkCommand(
+    executable: 'gh',
+    arguments: ['auth', 'status'],
+    versionExtractor: (_) => null,
+  );
 
-    // Check 3: gh --version
-    final ghCheck = await _checkCommand(
-      name: 'gh',
-      executable: 'gh',
-      arguments: ['--version'],
-      versionExtractor: _extractGhVersion,
-    );
-    checks.add(ghCheck);
-    if (!ghCheck.passed) {
-      prereqPassed = false;
-      return DoctorOutput(checks: checks, passed: false);
-    }
-
-    // Check 4: gh auth status
-    final authCheck = await _checkCommand(
-      name: 'gh auth',
-      executable: 'gh',
-      arguments: ['auth', 'status'],
-      versionExtractor: (_) => null,
-    );
-    checks.add(authCheck);
-    if (!authCheck.passed) {
-      prereqPassed = false;
-    }
-
-    // Check 5: .inquiry/ directory (init)
-    final initExists = _fileSystem.directoryExists('.inquiry');
-    if (!initExists) {
-      checks.add(
-        DoctorCheck(
-          name: 'inquiry init',
-          passed: false,
-          error: 'not initialized',
-          remediation: "Run 'inquiry init' to initialize",
-        ),
+  Future<CliCheckResult> checkInit() async {
+    if (_fileSystem.directoryExists('.inquiry')) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'initialized',
       );
-      prereqPassed = false;
+    }
+    return const CliCheckResult(
+      status: CliCheckStatus.error,
+      message: "not initialized. Run 'inquiry init' to initialize",
+    );
+  }
+
+  /// Checks that all expected internal assets exist on disk.
+  ///
+  /// `ok` with an explanatory message when there is no [Assets] to verify
+  /// against (cannot verify, not a failure).
+  Future<CliCheckResult> checkAssets() async {
+    final assets = _assets;
+    if (assets == null) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'not checked (no asset root configured)',
+      );
     }
 
-    // Check 6: Internal assets integrity
-    final assetCheck = _checkInternalAssets();
-    if (assetCheck != null) {
-      checks.add(assetCheck);
-      if (!assetCheck.passed) {
-        if (input.fix) {
-          final fixResult = await _fixAssets();
-          checks.add(fixResult);
-          if (fixResult.passed) {
-            // Re-check after fix
-            final recheck = _checkInternalAssets();
-            if (recheck == null || recheck.passed) {
-              // Remove the failed check, it's been fixed
-              checks.remove(assetCheck);
-            } else {
-              prereqPassed = false;
-            }
-          } else {
-            prereqPassed = false;
-          }
-        } else {
-          prereqPassed = false;
+    final missing = <String>[];
+
+    // FSM state instruction files
+    const stateFiles = [
+      'idle',
+      'analyze',
+      'plan',
+      'execute',
+      'end',
+      'evolution',
+    ];
+    for (final state in stateFiles) {
+      final path = assets.path('fsm/states/$state.yaml');
+      if (!File(path).existsSync()) {
+        missing.add('fsm/states/$state.yaml');
+      }
+    }
+
+    // APE definition files
+    const apeFiles = ['socrates', 'dewey', 'descartes', 'ada', 'darwin'];
+    for (final ape in apeFiles) {
+      final path = assets.path('apes/$ape.yaml');
+      if (!File(path).existsSync()) {
+        missing.add('apes/$ape.yaml');
+      }
+    }
+
+    // Transition contract
+    final contractPath = assets.path('fsm/transition_contract.yaml');
+    if (!File(contractPath).existsSync()) {
+      missing.add('fsm/transition_contract.yaml');
+    }
+
+    // Skills
+    try {
+      final skills = assets.listDirectory('skills');
+      for (final skill in skills) {
+        final path = assets.path('skills/$skill/SKILL.md');
+        if (!File(path).existsSync()) {
+          missing.add('skills/$skill/SKILL.md');
         }
       }
+    } catch (_) {
+      missing.add('skills/ (directory missing)');
     }
 
-    // Check 7: Version check (non-blocking)
-    final versionCheck = await _checkVersion();
-    if (versionCheck != null) {
-      checks.add(versionCheck);
+    if (missing.isEmpty) {
+      return const CliCheckResult(status: CliCheckStatus.ok, message: 'ok');
     }
 
-    // Host checks
-    final hostChecks = <HostCheck>[];
-    for (final adapter in _activeAdapters) {
-      hostChecks.add(_verifyHost(adapter));
-    }
-
-    // At least one host must be active (deployed); inactive hosts never fail.
-    final anyActive = hostChecks.any((hc) => hc.active);
-    final hostsPassed = anyActive && hostChecks.every((hc) => hc.passed);
-
-    // OpenCode + Ollama context check (only when OpenCode is the active host):
-    // a too-small num_ctx silently truncates the firmware and breaks the harness.
-    var ctxPassed = true;
-    final opencodeActive =
-        hostChecks.any((hc) => hc.hostName == 'opencode' && hc.active);
-    if (opencodeActive) {
-      final ctxCheck = await _checkOllamaContext();
-      if (ctxCheck != null) {
-        checks.add(ctxCheck);
-        if (!ctxCheck.passed) ctxPassed = false;
-      }
-    }
-
-    return DoctorOutput(
-      checks: checks,
-      hostChecks: hostChecks,
-      passed: prereqPassed && hostsPassed && ctxPassed,
+    return CliCheckResult(
+      status: CliCheckStatus.error,
+      message:
+          '${missing.length} missing: ${missing.join(', ')}. '
+          "'iq upgrade --apply' will not restore them if the binary is "
+          'already current (it reports "Already on the latest version" and '
+          'does nothing). Reinstall instead: $_reinstallRemedy',
     );
   }
 
-  /// Verifies every Ollama model configured for OpenCode has an effective
-  /// `num_ctx >= kInquiryMinNumCtx`. Returns a failing check if any is too
-  /// small, or null when there is nothing to verify (no config / no Ollama
-  /// provider / Ollama not installed).
-  Future<DoctorCheck?> _checkOllamaContext() async {
-    final cfgPath = p.join(
-      _fileSystem.homeDirectory(),
-      '.config',
-      'opencode',
-      'opencode.jsonc',
-    );
-    final raw = _fileSystem.readFile(cfgPath);
-    if (raw == null) return null;
-
-    final models = ollamaModelsFromConfig(raw);
-    if (models.isEmpty) return null;
-
-    final tooSmall = <String>[];
-    for (final model in models) {
-      final ctx = await effectiveNumCtx(_runProcess, model);
-      if (ctx == null) continue; // can't determine (Ollama absent) — skip
-      if (ctx < kInquiryMinNumCtx) tooSmall.add('$model (num_ctx=$ctx)');
-    }
-    if (tooSmall.isEmpty) return null;
-
-    return DoctorCheck(
-      name: 'opencode/ollama context',
-      passed: false,
-      error: 'num_ctx < $kInquiryMinNumCtx for: ${tooSmall.join(', ')}',
-      remediation:
-          "Inquiry's prompt needs ~8K tokens; at 4096 it is truncated and the "
-          "harness fails silently. Bake a variant — Modelfile 'FROM <model>\\n"
-          "PARAMETER num_ctx 16384' then 'ollama create <model>-16k -f Modelfile' "
-          "(32768 recommended) — and point opencode.jsonc at it. "
-          "Or run 'iq host get --host opencode --configure-ollama --apply' to configure it.",
-    );
-  }
+  /// The reinstall one-liner [checkAssets] points a user at, for the
+  /// platform this check is running on: `install.ps1` needs PowerShell and
+  /// refuses any OS but Windows, so a Linux machine needs `install.sh`
+  /// instead (`code/site/install.sh`), which fetches the latest release,
+  /// downloads `inquiry-linux-x64.tar.gz`, and extracts it, restoring
+  /// `assets/` along with everything else.
+  String get _reinstallRemedy => _operatingSystem == 'windows'
+      ? 'irm https://inquiry.ccisne.dev/install.ps1 | iex'
+      : 'curl -fsSL https://inquiry.ccisne.dev/install.sh | bash';
 
   /// The skills a deployed host is expected to carry.
   ///
@@ -464,10 +306,12 @@ class DoctorCommand implements Query<DoctorInput, DoctorOutput> {
   }
 
   /// Verifies a single host adapter's deployment.
-  HostCheck _verifyHost(HostAdapter adapter) {
+  HostCheck verifyHost(HostAdapter adapter) {
     final homeDir = _fileSystem.homeDirectory();
     final expectedSkills = _getExpectedSkills();
-    final installed = _fileSystem.directoryExists(adapter.baseDirectory(homeDir));
+    final installed = _fileSystem.directoryExists(
+      adapter.baseDirectory(homeDir),
+    );
 
     // Agent + skills are installed GLOBALLY per host by `iq host get` (#280).
     final agentExists = _fileSystem.fileExists(
@@ -504,188 +348,137 @@ class DoctorCommand implements Query<DoctorInput, DoctorOutput> {
     );
   }
 
-  /// Checks that all expected internal assets exist on disk.
-  ///
-  /// Returns null if no [_assets] is available (cannot verify).
-  DoctorCheck? _checkInternalAssets() {
-    if (_assets == null) return null;
-
-    final missing = <String>[];
-
-    // FSM state instruction files
-    const stateFiles = ['idle', 'analyze', 'plan', 'execute', 'end', 'evolution'];
-    for (final state in stateFiles) {
-      final path = _assets.path('fsm/states/$state.yaml');
-      if (!File(path).existsSync()) {
-        missing.add('fsm/states/$state.yaml');
-      }
+  /// Reports [adapter]'s own deployment status. Never a failure on its own
+  /// when the host is simply absent or inactive — see [HostCheck.passed].
+  Future<CliCheckResult> checkHost(HostAdapter adapter) async {
+    final hc = verifyHost(adapter);
+    if (!hc.installed) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'not installed',
+      );
+    }
+    if (!hc.active) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'not deployed (inactive)',
+      );
+    }
+    if (hc.passed) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'agent deployed',
+      );
     }
 
-    // APE definition files
-    const apeFiles = ['socrates', 'dewey', 'descartes', 'ada', 'darwin'];
-    for (final ape in apeFiles) {
-      final path = _assets.path('apes/$ape.yaml');
-      if (!File(path).existsSync()) {
-        missing.add('apes/$ape.yaml');
-      }
+    final problems = <String>[];
+    if (!hc.agentExists) {
+      problems.add(
+        'agent not deployed. '
+        "Run 'iq host get --host ${adapter.name} --apply' to install it",
+      );
     }
-
-    // Transition contract
-    final contractPath = _assets.path('fsm/transition_contract.yaml');
-    if (!File(contractPath).existsSync()) {
-      missing.add('fsm/transition_contract.yaml');
+    if (hc.missingSkills.isNotEmpty) {
+      problems.add(
+        'missing skills: ${hc.missingSkills.join(', ')}. '
+        "Run 'iq host get --host ${adapter.name} --apply' to deploy them",
+      );
     }
-
-    // Skills
-    try {
-      final skills = _assets.listDirectory('skills');
-      for (final skill in skills) {
-        final path = _assets.path('skills/$skill/SKILL.md');
-        if (!File(path).existsSync()) {
-          missing.add('skills/$skill/SKILL.md');
-        }
-      }
-    } catch (_) {
-      missing.add('skills/ (directory missing)');
-    }
-
-    if (missing.isEmpty) {
-      return DoctorCheck(name: 'assets', passed: true);
-    }
-
-    return DoctorCheck(
-      name: 'assets',
-      passed: false,
-      error: '${missing.length} missing: ${missing.join(', ')}',
-      remediation: "Run 'iq doctor --fix' to restore missing assets",
+    return CliCheckResult(
+      status: CliCheckStatus.error,
+      message: problems.join('; '),
     );
   }
 
-  /// Downloads and restores missing assets from the current version's release.
-  Future<DoctorCheck> _fixAssets() async {
-    if (_assets == null) {
-      return DoctorCheck(
-        name: 'fix',
-        passed: false,
-        error: 'Cannot determine asset location',
+  /// At least one host must be active (deployed) on a machine that has any AI
+  /// coding host installed at all; a machine with none installed is a
+  /// legitimate state, not a failure (#300).
+  Future<CliCheckResult> checkAnyHostActive() async {
+    final checks = activeAdapters.map(verifyHost).toList(growable: false);
+    if (!checks.any((hc) => hc.installed)) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'no AI coding host installed on this machine',
       );
     }
-
-    try {
-      stderr.writeln('Downloading assets for v$inquiryVersion...');
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 10);
-
-      final assetName = Platform.isWindows
-          ? 'inquiry-windows-x64.zip'
-          : 'inquiry-linux-x64.tar.gz';
-
-      final downloadUrl = Uri.parse(
-        'https://github.com/ccisnedev/inquiry/releases/download/v$inquiryVersion/$assetName',
-      );
-
-      final request = await client.getUrl(downloadUrl);
-      request.headers.set('User-Agent', 'inquiry-cli/$inquiryVersion');
-      request.followRedirects = true;
-      final response = await request.close();
-
-      if (response.statusCode != 200) {
-        await response.drain<void>();
-        client.close();
-        return DoctorCheck(
-          name: 'fix',
-          passed: false,
-          error: 'Failed to download assets (HTTP ${response.statusCode})',
-        );
-      }
-
-      // Save to temp and extract
-      final tempDir = Directory.systemTemp.createTempSync('iq_fix_');
-      final archiveFile = File(p.join(tempDir.path, assetName));
-      final sink = archiveFile.openWrite();
-      await response.pipe(sink);
-      client.close();
-
-      // Extract to the asset root's parent (which is the install dir)
-      final installDir = p.dirname(_assets.path(''));
-      // Remove trailing 'assets' from path to get install root
-      final installRoot = installDir.endsWith('assets${p.separator}') ||
-              installDir.endsWith('assets')
-          ? p.dirname(installDir)
-          : p.dirname(p.dirname(installDir));
-
-      stderr.writeln('Extracting to: $installRoot');
-
-      if (Platform.isWindows) {
-        final result = await Process.run('powershell', [
-          '-NoProfile',
-          '-Command',
-          'Expand-Archive',
-          '-Path', archiveFile.path,
-          '-DestinationPath', installRoot,
-          '-Force',
-        ]);
-        if (result.exitCode != 0) {
-          tempDir.deleteSync(recursive: true);
-          return DoctorCheck(
-            name: 'fix',
-            passed: false,
-            error: 'Extraction failed: ${result.stderr}',
-          );
-        }
-      } else {
-        final result = await Process.run('tar', [
-          '-xzf', archiveFile.path,
-          '-C', installRoot,
-        ]);
-        if (result.exitCode != 0) {
-          tempDir.deleteSync(recursive: true);
-          return DoctorCheck(
-            name: 'fix',
-            passed: false,
-            error: 'Extraction failed: ${result.stderr}',
-          );
-        }
-      }
-
-      tempDir.deleteSync(recursive: true);
-      stderr.writeln('✓ Assets restored successfully');
-      return DoctorCheck(name: 'fix', passed: true, version: 'restored');
-    } on Exception catch (e) {
-      return DoctorCheck(
-        name: 'fix',
-        passed: false,
-        error: 'Fix failed: $e',
+    if (!checks.any((hc) => hc.active)) {
+      return const CliCheckResult(
+        status: CliCheckStatus.error,
+        message: "no host deployed. Run 'iq host get --apply'",
       );
     }
+    return CliCheckResult(
+      status: CliCheckStatus.ok,
+      message: checks
+          .where((hc) => hc.active)
+          .map((hc) => hc.hostName)
+          .join(', '),
+    );
   }
 
-  /// Checks if a newer version is available. Non-blocking.
-  ///
-  /// Returns a passing check with update info, or null on failure/timeout.
-  Future<DoctorCheck?> _checkVersion() async {
-    try {
-      final checker = _versionChecker ??
-          ({required String currentVersion}) =>
-              checkLatestVersion(currentVersion: currentVersion);
-      final result = await checker(currentVersion: inquiryVersion);
-      if (result.updateAvailable && result.latestVersion != null) {
-        return DoctorCheck(
-          name: 'update',
-          passed: true,
-          version: '${result.latestVersion} available',
-          remediation: "Run 'iq upgrade --apply' to update",
-        );
-      }
-      return null; // No update, no check to show
-    } catch (_) {
-      return null; // Silent on failure
+  /// Verifies every Ollama model configured for OpenCode has an effective
+  /// `num_ctx >= kInquiryMinNumCtx`. `ok` ("not applicable") when OpenCode is
+  /// not the active host, there is no config, or no Ollama provider — this
+  /// check always runs (contributed checks cannot be conditional at setup
+  /// time), so the "nothing to verify" cases must be reported as `ok` rather
+  /// than omitted, unlike the old `DoctorCommand`'s optional check.
+  Future<CliCheckResult> checkOllamaContext() async {
+    final opencodeActive = activeAdapters
+        .map(verifyHost)
+        .any((hc) => hc.hostName == 'opencode' && hc.active);
+    if (!opencodeActive) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'not applicable (OpenCode is not the active host)',
+      );
     }
+
+    final cfgPath = p.join(
+      _fileSystem.homeDirectory(),
+      '.config',
+      'opencode',
+      'opencode.jsonc',
+    );
+    final raw = _fileSystem.readFile(cfgPath);
+    if (raw == null) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'not applicable (no opencode.jsonc)',
+      );
+    }
+
+    final models = ollamaModelsFromConfig(raw);
+    if (models.isEmpty) {
+      return const CliCheckResult(
+        status: CliCheckStatus.ok,
+        message: 'not applicable (no Ollama provider configured)',
+      );
+    }
+
+    final tooSmall = <String>[];
+    for (final model in models) {
+      final ctx = await effectiveNumCtx(_runProcess, model);
+      if (ctx == null) continue; // can't determine (Ollama absent) — skip
+      if (ctx < kInquiryMinNumCtx) tooSmall.add('$model (num_ctx=$ctx)');
+    }
+    if (tooSmall.isEmpty) {
+      return const CliCheckResult(status: CliCheckStatus.ok, message: 'ok');
+    }
+
+    return CliCheckResult(
+      status: CliCheckStatus.error,
+      message:
+          'num_ctx < $kInquiryMinNumCtx for: ${tooSmall.join(', ')}. '
+          "Inquiry's prompt needs ~8K tokens; at 4096 it is truncated and the "
+          "harness fails silently. Bake a variant — Modelfile 'FROM <model>\\n"
+          "PARAMETER num_ctx 16384' then 'ollama create <model>-16k -f Modelfile' "
+          "(32768 recommended) — and point opencode.jsonc at it. "
+          "Or run 'iq host get --host opencode --configure-ollama --apply' to configure it.",
+    );
   }
 
-  /// Runs a command and returns a [DoctorCheck] with the result.
-  Future<DoctorCheck> _checkCommand({
-    required String name,
+  /// Runs a command and returns a [CliCheckResult] with the result.
+  Future<CliCheckResult> _checkCommand({
     required String executable,
     required List<String> arguments,
     required String? Function(String stdout) versionExtractor,
@@ -694,16 +487,18 @@ class DoctorCommand implements Query<DoctorInput, DoctorOutput> {
       final result = await _runProcess(executable, arguments);
       if (result.exitCode == 0) {
         final version = versionExtractor(result.stdout.toString());
-        return DoctorCheck(name: name, passed: true, version: version);
+        return CliCheckResult(
+          status: CliCheckStatus.ok,
+          message: version ?? 'ok',
+        );
       } else {
-        return DoctorCheck(
-          name: name,
-          passed: false,
-          error: result.stderr.toString().trim(),
+        return CliCheckResult(
+          status: CliCheckStatus.error,
+          message: result.stderr.toString().trim(),
         );
       }
     } catch (e) {
-      return DoctorCheck(name: name, passed: false, error: e.toString());
+      return CliCheckResult(status: CliCheckStatus.error, message: '$e');
     }
   }
 

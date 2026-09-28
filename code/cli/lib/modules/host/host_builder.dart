@@ -23,18 +23,17 @@ void buildHostModule(
         homeDir: deployer.homeDir,
       ),
     ),
-    description:
-        'Install Inquiry (agent + skills) globally for a host',
-    params: HostGetInput.params,
+    description: 'Install Inquiry (agent + skills) globally for a host',
+    globals: true,
+    contract: HostGetInput.contract,
   );
 
   m.command<HostCleanInput, HostCleanOutput>(
     'clean',
-    (req) => HostCleanCommand(
-      HostCleanInput.fromCliRequest(req),
-      deployer: cleaner,
-    ),
+    (req) =>
+        HostCleanCommand(HostCleanInput.fromCliRequest(req), deployer: cleaner),
     description: 'Remove deployed Inquiry files from all hosts',
-    params: HostCleanInput.params,
+    globals: true,
+    contract: HostCleanInput.contract,
   );
 }

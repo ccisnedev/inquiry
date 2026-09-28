@@ -5,11 +5,13 @@ import 'package:test/test.dart';
 void main() {
   group('CLI scaffold', () {
     test('responds to a registered query with exit code 0', () async {
-      final cli = ModularCli();
+      final cli = ModularCli(suggestionDistance: 2);
       cli.query<PingInput, PingOutput>(
         'ping',
         (req) => PingQuery(PingInput.fromCliRequest(req)),
         description: 'Ping test',
+        globals: true,
+        contract: PingInput.contract,
       );
 
       final code = await cli.run(['ping']);
@@ -19,25 +21,31 @@ void main() {
     // A query answers on the spot; a command does not. The scaffold has to
     // dispatch both kinds, and the difference between them is the whole point
     // of registering them apart — so it belongs in the scaffold's own test.
-    test('refuses a registered command that names neither --plan nor --apply',
-        () async {
-      final cli = ModularCli();
-      cli.command<PingInput, PingOutput>(
-        'touch',
-        (req) => PingCommand(PingInput.fromCliRequest(req)),
-        description: 'Command test',
-      );
+    test(
+      'refuses a registered command that names neither --plan nor --apply',
+      () async {
+        final cli = ModularCli(suggestionDistance: 2);
+        cli.command<PingInput, PingOutput>(
+          'touch',
+          (req) => PingCommand(PingInput.fromCliRequest(req)),
+          description: 'Command test',
+          globals: true,
+          contract: PingInput.contract,
+        );
 
-      final code = await cli.run(['touch']);
-      expect(code, ExitCode.validationFailed);
-    });
+        final code = await cli.run(['touch']);
+        expect(code, ExitCode.validationFailed);
+      },
+    );
 
     test('runs a registered command under --plan', () async {
-      final cli = ModularCli();
+      final cli = ModularCli(suggestionDistance: 2);
       cli.command<PingInput, PingOutput>(
         'touch',
         (req) => PingCommand(PingInput.fromCliRequest(req)),
         description: 'Command test',
+        globals: true,
+        contract: PingInput.contract,
       );
 
       final code = await cli.run(['touch', '--plan']);
@@ -45,7 +53,7 @@ void main() {
     });
 
     test('returns exit code 64 for unknown command', () async {
-      final cli = ModularCli();
+      final cli = ModularCli(suggestionDistance: 2);
 
       final code = await cli.run(['nonexistent']);
       expect(code, ExitCode.invalidUsage);
@@ -58,6 +66,8 @@ void main() {
 class PingInput extends Input {
   PingInput();
   factory PingInput.fromCliRequest(CliRequest req) => PingInput();
+
+  static const CliContract contract = CliContract.none;
 
   @override
   Map<String, dynamic> toJson() => {};

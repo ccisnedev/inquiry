@@ -129,32 +129,38 @@ void main() {
         expect(result.to, equals('compose_change'));
       });
 
-      test('ada manifesto_review --complete--> _DONE preserves outer FSM state', () async {
-        writeState(
-          state: 'EXECUTE',
-          issue: '145',
-          apeName: 'ada',
-          apeState: 'manifesto_review',
-        );
+      test(
+        'ada manifesto_review --complete--> _DONE preserves outer FSM state',
+        () async {
+          writeState(
+            state: 'EXECUTE',
+            issue: '145',
+            apeName: 'ada',
+            apeState: 'manifesto_review',
+          );
 
-        final cmd = ApeTransitionCommand(
-          ApeTransitionInput(event: 'complete', workingDirectory: tmpDir.path),
-        );
-        final result = await cmd.execute();
+          final cmd = ApeTransitionCommand(
+            ApeTransitionInput(
+              event: 'complete',
+              workingDirectory: tmpDir.path,
+            ),
+          );
+          final result = await cmd.execute();
 
-        expect(result.from, equals('manifesto_review'));
-        expect(result.to, equals('_DONE'));
+          expect(result.from, equals('manifesto_review'));
+          expect(result.to, equals('_DONE'));
 
-        final content = File(
-          p.join(tmpDir.path, 'cleanrooms', branch, kStateFileName),
-        ).readAsStringSync();
-        expect(content, contains('state: EXECUTE'));
-        expect(content, contains('issue: "145"'));
-        expect(content, contains('name: ada'));
-        expect(content, contains('state: _DONE'));
-        expect(content, isNot(contains('issue: null')));
-        expect(content, isNot(contains('state: IDLE')));
-      });
+          final content = File(
+            p.join(tmpDir.path, 'cleanrooms', branch, kStateFileName),
+          ).readAsStringSync();
+          expect(content, contains('state: EXECUTE'));
+          expect(content, contains('issue: "145"'));
+          expect(content, contains('name: ada'));
+          expect(content, contains('state: _DONE'));
+          expect(content, isNot(contains('issue: null')));
+          expect(content, isNot(contains('state: IDLE')));
+        },
+      );
 
       test('dewey confirm --complete--> evaluate_scope', () async {
         writeState(state: 'IDLE', apeName: 'dewey', apeState: 'confirm');
@@ -258,7 +264,7 @@ void main() {
             () => cmd.execute(),
             throwsA(
               isA<CommandException>()
-                  .having((e) => e.code, 'code', equals('MISSING_EVENT'))
+                  .having((e) => e.id, 'id', equals('missing-event'))
                   .having(
                     (e) => e.exitCode,
                     'exitCode',
@@ -280,7 +286,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('NO_ACTIVE_APE'))
+                .having((e) => e.id, 'id', equals('no-active-ape'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -306,7 +312,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_COMPLETED'))
+                .having((e) => e.id, 'id', equals('ape-completed'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -332,7 +338,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('INVALID_APE_EVENT'))
+                .having((e) => e.id, 'id', equals('invalid-ape-event'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -363,7 +369,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_FOUND'))
+                .having((e) => e.id, 'id', equals('ape-not-found'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',

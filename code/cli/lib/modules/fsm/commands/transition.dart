@@ -107,10 +107,10 @@ class _PrePrInspectionReport {
     required this.checksByPass,
   });
 
-  bool get hasRequiredPassStructure =>
-      _requiredInspectionPasses.every(
-        (pass) => (checksByPass[pass] ?? const <_PrePrInspectionCheck>[]).isNotEmpty,
-      );
+  bool get hasRequiredPassStructure => _requiredInspectionPasses.every(
+    (pass) =>
+        (checksByPass[pass] ?? const <_PrePrInspectionCheck>[]).isNotEmpty,
+  );
 
   bool get hasFailChecks => checksByPass.values
       .expand((checks) => checks)
@@ -119,8 +119,7 @@ class _PrePrInspectionReport {
   bool get hasMissingRequiredCitations => checksByPass.values
       .expand((checks) => checks)
       .any(
-        (check) =>
-            check.requiresFileLineCitation && !check.hasFileLineCitation,
+        (check) => check.requiresFileLineCitation && !check.hasFileLineCitation,
       );
 }
 
@@ -137,38 +136,46 @@ class StateTransitionInput extends Input {
     required this.workingDirectory,
   });
 
-  static final List<CliParam> params = [
-    CliParam.string(
-      'event',
-      abbr: 'e',
-      required: true,
-      allowed: [for (final e in FsmEvent.values) e.value],
-      description: 'The transition to execute',
-    ),
-    CliParam.string(
-      'state',
-      abbr: 's',
-      allowed: [for (final s in FsmState.values) s.value],
-      description: 'State to transition from; read from the cycle when omitted',
-    ),
-    CliParam.string(
-      'issue',
-      abbr: 'i',
-      description: 'Issue the cycle is opened for (start_analyze)',
-    ),
-  ];
+  static final CliContract contract = CliContract(
+    options: [
+      CliParam.enumeration(
+        'event',
+        abbr: 'e',
+        required: true,
+        repeatable: false,
+        values: [for (final e in FsmEvent.values) e.value],
+        defaultValue: null,
+        description: 'The transition to execute',
+      ),
+      CliParam.enumeration(
+        'state',
+        abbr: 's',
+        required: false,
+        repeatable: false,
+        values: [for (final s in FsmState.values) s.value],
+        defaultValue: null,
+        description:
+            'State to transition from; read from the cycle when omitted',
+      ),
+      CliParam.string(
+        'issue',
+        abbr: 'i',
+        required: false,
+        repeatable: false,
+        defaultValue: null,
+        description: 'Issue the cycle is opened for (start_analyze)',
+      ),
+    ],
+  );
 
   factory StateTransitionInput.fromCliRequest(CliRequest req) {
     return StateTransitionInput(
-      currentState: req.flagString('state', aliases: const ['s']),
-      event: req.flagString('event', aliases: const ['e']),
-      issue: req.flagString('issue', aliases: const ['i']),
+      currentState: req.flagString('state'),
+      event: req.flagString('event'),
+      issue: req.flagString('issue'),
       workingDirectory: Directory.current.path,
     );
   }
-
-  @override
-  List<CliParam> get schemaFields => params;
 
   @override
   Map<String, dynamic> toJson() => {
@@ -242,7 +249,9 @@ class StateTransitionOutput extends Output {
     final summary = instructionSummary?.trim();
     final buffer = StringBuffer()..writeln(message);
     buffer.writeln(
-      requiredRole != null ? 'required_role: $requiredRole' : 'required_role: null',
+      requiredRole != null
+          ? 'required_role: $requiredRole'
+          : 'required_role: null',
     );
     buffer.writeln('required_instructions: ${instructions.join(', ')}');
     buffer.writeln(
@@ -284,21 +293,17 @@ class StateTransitionCommand
   Future<StateTransitionOutput> execute() async {
     if (input.event == null || input.event!.trim().isEmpty) {
       throw CommandException(
-        code: 'MISSING_EVENT',
+        id: 'missing-event',
         message: 'Missing required flag --event for state transition',
         exitCode: ExitCode.validationFailed,
       );
     }
 
-    final projectRoot = getProjectRoot(input.workingDirectory) ?? input.workingDirectory;
+    final projectRoot =
+        getProjectRoot(input.workingDirectory) ?? input.workingDirectory;
     final contractPath = _assets != null
         ? _assets.path('fsm/transition_contract.yaml')
-        : p.join(
-        projectRoot,
-            'assets',
-            'fsm',
-            'transition_contract.yaml',
-          );
+        : p.join(projectRoot, 'assets', 'fsm', 'transition_contract.yaml');
     final contract = parseFsmContract(File(contractPath).readAsStringSync());
 
     final current = input.currentState != null
@@ -435,12 +440,12 @@ class StateTransitionCommand
         promptFragmentId: transition.operations?.promptFragmentId,
         reason: boundaryCommitResult.errorMessage!,
         blockingBoundary: 'boundary_commit',
-        authoritativeSurface: _boundaryCommitSpec(
-          transition.operations?.commitPolicy ?? 'none',
-          branch: branch,
-          issue: resolvedIssue,
-        )
-            ?.path ??
+        authoritativeSurface:
+            _boundaryCommitSpec(
+              transition.operations?.commitPolicy ?? 'none',
+              branch: branch,
+              issue: resolvedIssue,
+            )?.path ??
             'git:commit',
       );
       return StateTransitionOutput(
@@ -462,8 +467,8 @@ class StateTransitionCommand
     final prompt = promptId != null ? contract.promptFragments[promptId] : null;
     final instructions = prompt?.instructions;
     final instructionSummary = instructions == null || instructions.isEmpty
-      ? null
-      : _loadInstructionSummary(instructions, projectRoot);
+        ? null
+        : _loadInstructionSummary(instructions, projectRoot);
 
     // Execute CLI-side effects
     final executedEffects = executor.executeAll(
@@ -534,7 +539,8 @@ class StateTransitionCommand
     if (!report.exists || report.verdict == null) {
       return 'MISSING';
     }
-    if (!report.hasRequiredPassStructure || report.hasMissingRequiredCitations) {
+    if (!report.hasRequiredPassStructure ||
+        report.hasMissingRequiredCitations) {
       return 'INVALID';
     }
     if (report.verdict == 'APPROVED' && report.hasFailChecks) {
@@ -614,12 +620,14 @@ class StateTransitionCommand
           transition.operations?.commitPolicy ?? 'none',
           branch: branch,
           issue: issue,
-        )
-        ?.path ??
+        )?.path ??
         p.posix.join('assets', 'fsm', 'transition_contract.yaml');
   }
 
-  String? _loadInstructionSummary(List<String> instructions, String projectRoot) {
+  String? _loadInstructionSummary(
+    List<String> instructions,
+    String projectRoot,
+  ) {
     for (final assets in _instructionAssetCandidates(projectRoot)) {
       if (!_hasInstructionAssets(assets, instructions)) {
         continue;
@@ -758,7 +766,10 @@ class StateTransitionCommand
     }
 
     if (prechecks.contains('diagnosis_structured')) {
-      final missingSections = _missingDiagnosisSections(branch, workingDirectory);
+      final missingSections = _missingDiagnosisSections(
+        branch,
+        workingDirectory,
+      );
       if (missingSections.isNotEmpty) {
         _recordPrecheckSensor(
           executor,
@@ -807,7 +818,10 @@ class StateTransitionCommand
     }
 
     if (prechecks.contains('diagnosis_evidence_verifiable')) {
-      final unverifiable = _unverifiableEvidenceBullets(branch, workingDirectory);
+      final unverifiable = _unverifiableEvidenceBullets(
+        branch,
+        workingDirectory,
+      );
       if (unverifiable == null || unverifiable.isNotEmpty) {
         _recordPrecheckSensor(
           executor,
@@ -1016,7 +1030,12 @@ class StateTransitionCommand
       case 'index_exists':
         return p.posix.join('cleanrooms', branch, 'analyze', 'index.md');
       case 'confirmations_exists':
-        return p.posix.join('cleanrooms', branch, 'analyze', 'confirmations.md');
+        return p.posix.join(
+          'cleanrooms',
+          branch,
+          'analyze',
+          'confirmations.md',
+        );
       case 'plan_approved':
       case 'plan_executable_checks':
         return p.posix.join('cleanrooms', branch, 'plan.md');
@@ -1027,7 +1046,10 @@ class StateTransitionCommand
     }
   }
 
-  List<String> _missingDiagnosisSections(String branch, String workingDirectory) {
+  List<String> _missingDiagnosisSections(
+    String branch,
+    String workingDirectory,
+  ) {
     final content = _readDiagnosisContent(branch, workingDirectory);
     if (content == null) {
       return _diagnosisSectionPatterns.keys.toList(growable: false);
@@ -1223,7 +1245,10 @@ class StateTransitionCommand
       outcome: stageResult.exitCode == 0 ? 'succeeded' : 'failed',
       exitCode: stageResult.exitCode,
       authority: spec.path,
-      operationsExecuted: const ['validate_transition', 'create_boundary_commit'],
+      operationsExecuted: const [
+        'validate_transition',
+        'create_boundary_commit',
+      ],
       issue: issue,
       promptFragmentId: promptFragmentId,
     );
@@ -1249,7 +1274,10 @@ class StateTransitionCommand
       outcome: commitResult.exitCode == 0 ? 'succeeded' : 'failed',
       exitCode: commitResult.exitCode,
       authority: spec.path,
-      operationsExecuted: const ['validate_transition', 'create_boundary_commit'],
+      operationsExecuted: const [
+        'validate_transition',
+        'create_boundary_commit',
+      ],
       issue: issue,
       promptFragmentId: promptFragmentId,
     );

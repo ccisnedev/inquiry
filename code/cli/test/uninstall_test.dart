@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:modular_cli_sdk/modular_cli_sdk.dart';
-import 'package:modular_cli_sdk/testing.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -9,8 +8,6 @@ import 'package:inquiry_cli/assets.dart';
 import 'package:inquiry_cli/modules/global/commands/uninstall.dart';
 import 'package:inquiry_cli/hosts/deployer.dart';
 import 'package:inquiry_cli/hosts/host_adapter.dart';
-
-import 'platform_ops_test.dart' show FakePlatformOps;
 
 class _FakeAdapter extends HostAdapter {
   @override
@@ -32,7 +29,7 @@ void main() {
   late HostDeployer deployer;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('ape_uninstall_test_');
+    tempDir = Directory.systemTemp.createTempSync('iq_uninstall_test_');
     homeDir = Directory(p.join(tempDir.path, 'home'))..createSync();
 
     final skillDir = Directory(
@@ -58,7 +55,21 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  group('UninstallCommand', () {
+  // `CleanDeployedHosts` and `RemoveRepoScopedAgent` are inquiry's own extra
+  // steps for `iq uninstall`, supplied to the SDK's `InstallationPlugin`
+  // through `CliInstallationConfig.preUninstallSteps` (see
+  // `lib/modules/global/installation_config.dart`). Taking `bin/` off PATH
+  // and scheduling the install directory for deletion are the plugin's own
+  // `UnsetFromPath` / `DeleteInstallation` now, covered by `modular_cli_sdk`'s
+  // own test suite, not repeated here.
+  group('CleanDeployedHosts', () {
+    test('previews naming every host this machine deployed to', () {
+      final preview = CleanDeployedHosts(deployer).preview();
+
+      expect(preview.verb, 'clean');
+      expect(preview.target, contains('every host'));
+    });
+
     test('cleans deployed hosts', () async {
       final ours = Directory(
         p.join(homeDir.path, '.fake', 'skills', 'iq-analyze'),
@@ -67,16 +78,7 @@ void main() {
         p.join(homeDir.path, '.fake', 'skills', 'legion'),
       )..createSync(recursive: true);
 
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        platformOps: FakePlatformOps(),
-      );
-
-      final output = await applyCommand(command);
-
-      expect(output.exitCode, ExitCode.ok);
-      expect(output.toText(), contains('uninstalled'));
+      await CleanDeployedHosts(deployer).perform(StepContext(const {}));
 
       // Uninstalling Inquiry removes Inquiry. It does not empty a host's
       // skills directory, which holds other tools' work and the user's:
@@ -95,206 +97,79 @@ void main() {
       );
     });
 
-    test('exits 0 when nothing was deployed', () async {
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        platformOps: FakePlatformOps(),
-      );
-
-      final output = await applyCommand(command);
-      expect(output.exitCode, ExitCode.ok);
-    });
-
-    test('removes bin dir from PATH via platformOps', () async {
-      final binDir = p.join(tempDir.path, 'bin');
-      final sep = Platform.isWindows ? ';' : ':';
-      final otherA = Platform.isWindows ? r'C:\other' : '/other';
-      final otherB = Platform.isWindows ? r'C:\more' : '/more';
-      final fakePath = '$otherA$sep$binDir$sep$otherB';
-      final ops = FakePlatformOps(fakeEnvValue: fakePath);
-
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        platformOps: ops,
-      );
-
-      await applyCommand(command);
-
-      expect(ops.calls, contains('getEnvVariable(PATH)'));
-      final expectedNew = '$otherA$sep$otherB';
-      expect(
-        ops.calls,
-        contains('setEnvVariable(PATH, $expectedNew)'),
-      );
-    });
-
-    test('does not call setEnvVariable when bin dir is not in PATH', () async {
-      final sep = Platform.isWindows ? ';' : ':';
-      final otherA = Platform.isWindows ? r'C:\other' : '/other';
-      final otherB = Platform.isWindows ? r'C:\more' : '/more';
-      final ops = FakePlatformOps(fakeEnvValue: '$otherA$sep$otherB');
-
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        platformOps: ops,
-      );
-
-      await applyCommand(command);
-
-      expect(ops.calls, contains('getEnvVariable(PATH)'));
-      expect(
-        ops.calls.where((c) => c.startsWith('setEnvVariable')),
-        isEmpty,
-      );
-    });
-
-    test('schedules deletion of install directory', () async {
-      final ops = FakePlatformOps();
-
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        platformOps: ops,
-      );
-
-      await applyCommand(command);
-
-      expect(ops.calls, contains('scheduleDeletion(${tempDir.path})'));
-    });
-
-    test('removes .github/agents/inquiry.agent.md from working directory',
-        () async {
-      final agentFile = File(
-        p.join(tempDir.path, '.github', 'agents', 'inquiry.agent.md'),
-      );
-      agentFile.parent.createSync(recursive: true);
-      agentFile.writeAsStringSync('# APE Agent');
-
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        workingDirectory: tempDir.path,
-        platformOps: FakePlatformOps(),
-      );
-
-      await applyCommand(command);
-
-      expect(agentFile.existsSync(), isFalse,
-          reason: 'iq uninstall must remove repo-scoped agent');
-    });
-
-    test('does not fail if .github/agents/inquiry.agent.md does not exist',
-        () async {
-      final command = UninstallCommand(
-        UninstallInput(installDir: tempDir.path),
-        deployer: deployer,
-        workingDirectory: tempDir.path,
-        platformOps: FakePlatformOps(),
-      );
-
-      await expectLater(applyCommand(command), completes);
-    });
-  });
-
-  // What `--plan` shows. These are the assertions the old `execute()` could not
-  // make: that the order is a fact about the command rather than a comment, and
-  // that planning an uninstall uninstalls nothing.
-  group('UninstallCommand under --plan', () {
-    test('names the four steps, hosts first and the directory last', () async {
-      final previews = await previewCommand(
-        UninstallCommand(
-          UninstallInput(installDir: tempDir.path),
-          deployer: deployer,
-          workingDirectory: tempDir.path,
-          platformOps: FakePlatformOps(),
-        ),
-      );
-
-      expect(
-        previews.map((p) => p.verb).toList(),
-        ['clean', 'absent', 'unset', 'delete'],
-      );
-    });
-
-    // PATH comes off before the directory is scheduled for deletion, so there
-    // is never a window in which the entry points at a directory on its way
-    // out.
-    test('unsets PATH before it deletes the installation', () async {
-      final previews = await previewCommand(
-        UninstallCommand(
-          UninstallInput(installDir: tempDir.path),
-          deployer: deployer,
-          workingDirectory: tempDir.path,
-          platformOps: FakePlatformOps(),
-        ),
-      );
-
-      expect(
-        previews.indexWhere((p) => p.verb == 'unset'),
-        lessThan(previews.indexWhere((p) => p.verb == 'delete')),
-      );
-    });
-
-    test('says the installation directory it would delete', () async {
-      final previews = await previewCommand(
-        UninstallCommand(
-          UninstallInput(installDir: tempDir.path),
-          deployer: deployer,
-          workingDirectory: tempDir.path,
-          platformOps: FakePlatformOps(),
-        ),
-      );
-
-      final delete = previews.firstWhere((p) => p.verb == 'delete');
-      expect(delete.target, tempDir.path);
-      expect(delete.detail, contains('not touched'));
-    });
-
-    test('touches nothing: the deployed host survives the plan', () async {
+    test('touches nothing under preview: the deployed host survives', () {
       final ours = Directory(
         p.join(homeDir.path, '.fake', 'skills', 'iq-analyze'),
       )..createSync(recursive: true);
-      final ops = FakePlatformOps();
 
-      await previewCommand(
-        UninstallCommand(
-          UninstallInput(installDir: tempDir.path),
-          deployer: deployer,
-          workingDirectory: tempDir.path,
-          platformOps: ops,
-        ),
-      );
+      CleanDeployedHosts(deployer).preview();
 
       expect(
         ours.existsSync(),
         isTrue,
-        reason: 'a plan changes nothing, including the sweep',
+        reason: 'a preview changes nothing, including the sweep',
       );
-      expect(ops.calls, isEmpty);
     });
+  });
 
-    test('reports the repo-scoped agent as present when it is there', () async {
+  group('RemoveRepoScopedAgent', () {
+    test('previews as present when the file is there', () {
       final agentFile = File(
         p.join(tempDir.path, '.github', 'agents', 'inquiry.agent.md'),
       );
       agentFile.parent.createSync(recursive: true);
       agentFile.writeAsStringSync('# APE Agent');
 
-      final previews = await previewCommand(
-        UninstallCommand(
-          UninstallInput(installDir: tempDir.path),
-          deployer: deployer,
-          workingDirectory: tempDir.path,
-          platformOps: FakePlatformOps(),
-        ),
+      final preview = RemoveRepoScopedAgent(agentFile.path).preview();
+
+      expect(preview.verb, 'remove');
+    });
+
+    test('previews as absent when the file is not there', () {
+      final path = p.join(
+        tempDir.path,
+        '.github',
+        'agents',
+        'inquiry.agent.md',
       );
 
-      expect(previews.map((p) => p.verb).toList(),
-          ['clean', 'remove', 'unset', 'delete']);
-      expect(agentFile.existsSync(), isTrue);
+      final preview = RemoveRepoScopedAgent(path).preview();
+
+      expect(preview.verb, 'absent');
+    });
+
+    test('removes .github/agents/inquiry.agent.md when it exists', () async {
+      final agentFile = File(
+        p.join(tempDir.path, '.github', 'agents', 'inquiry.agent.md'),
+      );
+      agentFile.parent.createSync(recursive: true);
+      agentFile.writeAsStringSync('# APE Agent');
+
+      final outcome = await RemoveRepoScopedAgent(
+        agentFile.path,
+      ).perform(StepContext(const {}));
+
+      expect(outcome.verb, 'remove');
+      expect(
+        agentFile.existsSync(),
+        isFalse,
+        reason: 'iq uninstall must remove repo-scoped agent',
+      );
+    });
+
+    test('does not fail when the file does not exist', () async {
+      final path = p.join(
+        tempDir.path,
+        '.github',
+        'agents',
+        'inquiry.agent.md',
+      );
+
+      final outcome = await RemoveRepoScopedAgent(
+        path,
+      ).perform(StepContext(const {}));
+
+      expect(outcome.verb, 'absent');
     });
   });
 }

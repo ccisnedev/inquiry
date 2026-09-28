@@ -17,14 +17,11 @@ class TuiInput extends Input {
 
   factory TuiInput.fromCliRequest(CliRequest req) => TuiInput();
 
-    /// Declares an EMPTY contract: this command accepts no option at all, so any
-  /// option passed to it is refused. Omitting `params` would mean "declares
+  /// Declares an EMPTY contract: this command accepts no option at all, so any
+  /// option passed to it is refused. Omitting `contract` would mean "declares
   /// nothing" — which is how `iq init --host claude` used to run, doing nothing
   /// the flag implied.
-  static const List<CliParam> params = [];
-
-  @override
-  List<CliParam> get schemaFields => params;
+  static const CliContract contract = CliContract.none;
 
   @override
   Map<String, dynamic> toJson() => {};
@@ -57,11 +54,12 @@ class TuiCommand implements Query<TuiInput, TuiOutput> {
   @override
   final TuiInput input;
   final Future<VersionCheckResult> Function({required String currentVersion})?
-      _versionChecker;
+  _versionChecker;
 
-  TuiCommand(this.input, {
+  TuiCommand(
+    this.input, {
     Future<VersionCheckResult> Function({required String currentVersion})?
-        versionChecker,
+    versionChecker,
   }) : _versionChecker = versionChecker;
 
   @override
@@ -73,12 +71,14 @@ class TuiCommand implements Query<TuiInput, TuiOutput> {
 
     // Non-blocking version check
     try {
-      final checker = _versionChecker ??
+      final checker =
+          _versionChecker ??
           ({required String currentVersion}) =>
               checkLatestVersion(currentVersion: currentVersion);
       final result = await checker(currentVersion: inquiryVersion);
       if (result.updateAvailable && result.latestVersion != null) {
-        diagram += "\n\nUpdate available: $inquiryVersion → ${result.latestVersion}"
+        diagram +=
+            "\n\nUpdate available: $inquiryVersion → ${result.latestVersion}"
             " — run 'iq upgrade --apply'";
       }
     } catch (_) {
@@ -111,8 +111,7 @@ String _buildDiagram(String version) {
       '\n$_bgr  ●    $_r'
       '\n$_wht ▀█ ▄▀▀█$_r  $_b${_red}Inquiry$_r v$version'
       '\n$_wht▄▄█▄▀▄▄█$_r  ${_d}powered by the Finite APE Machine$_r'
-      '\n$_wht       ▀$_r'
-  ;
+      '\n$_wht       ▀$_r';
 
   // FSM: backward arrows above, Evolution loop below
   final fsm =
@@ -121,13 +120,11 @@ String _buildDiagram(String version) {
       '  Idle$_r $_d──>$_r $_b${_red}Analyze$_r $_d──>$_r $_b${_red}Plan$_r $_d──>$_r $_b${_red}Execute$_r $_d──>$_r End$_r $_d──>$_r Idle\n'
       '$_d             ▲           │                   $_ylw│$_r        $_d$_ylw▲$_r\n'
       '$_d             ╰───────────╯                   $_ylw▼$_r        $_d$_ylw│$_r\n'
-      '$_d                                        ${_ylw}Evolution$_r$_d$_ylw ────╯$_r'
-  ;
+      '$_d                                        ${_ylw}Evolution$_r$_d$_ylw ────╯$_r';
 
   final footer =
       '  ${_d}Commands: init, doctor, version$_r\n'
-      '  ${_d}Run: iq --help$_r'
-  ;
+      '  ${_d}Run: iq --help$_r';
 
   return '$logo\n\n$fsm\n\n$footer';
 }

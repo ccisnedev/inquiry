@@ -46,18 +46,22 @@ void main() {
       }
     });
 
-    test('names the TUI by how it is invoked, and documents global options',
-        () async {
-      final r = await _run(const ['help']);
+    test(
+      'names the TUI by how it is invoked, and documents global options',
+      () async {
+        final r = await _run(const ['help']);
 
-      expect(r.out, contains('(no arguments)'));
-      expect(r.out, contains('Global options'));
-    });
+        expect(r.out, contains('(no arguments)'));
+        expect(r.out, contains('Global options'));
+      },
+    );
 
     test('carries each command description, not just its route', () async {
       final r = await _run(const ['help']);
 
-      expect(r.out, contains('Print the current CLI version'));
+      // `version`'s description is `VersionPlugin`'s own, not Inquiry's
+      // (ccisnedev/inquiry#321).
+      expect(r.out, contains("Print this CLI's name and version"));
       expect(r.out, contains('Run a deterministic FSM transition'));
     });
 
@@ -107,13 +111,23 @@ void main() {
 
       expect(r.code, 0);
       expect(r.out, contains('Inquiry'), reason: 'the banner should print');
-      expect(r.out, contains('Analyze'), reason: 'the FSM diagram should print');
-      expect(r.out, isNot(contains('Global options')),
-          reason: 'the empty invocation was hijacked by the help');
+      expect(
+        r.out,
+        contains('Analyze'),
+        reason: 'the FSM diagram should print',
+      );
+      expect(
+        r.out,
+        isNot(contains('Global options')),
+        reason: 'the empty invocation was hijacked by the help',
+      );
     });
 
     test('normalizes the version flags to the version command', () {
-      expect(normalizeInquiryArgs(const ['--version']), equals(const ['version']));
+      expect(
+        normalizeInquiryArgs(const ['--version']),
+        equals(const ['version']),
+      );
       expect(normalizeInquiryArgs(const ['-v']), equals(const ['version']));
       expect(
         normalizeInquiryArgs(const ['fsm', 'state']),

@@ -19,24 +19,25 @@ class ApeTransitionInput extends Input {
 
   ApeTransitionInput({required this.event, required this.workingDirectory});
 
-  static final List<CliParam> params = [
-    CliParam.string(
-      'event',
-      abbr: 'e',
-      required: true,
-      description: 'The APE-internal transition to execute',
-    ),
-  ];
+  static final CliContract contract = CliContract(
+    options: [
+      CliParam.string(
+        'event',
+        abbr: 'e',
+        required: true,
+        repeatable: false,
+        defaultValue: null,
+        description: 'The APE-internal transition to execute',
+      ),
+    ],
+  );
 
   factory ApeTransitionInput.fromCliRequest(CliRequest req) {
     return ApeTransitionInput(
-      event: req.flagString('event', aliases: const ['e']),
+      event: req.flagString('event'),
       workingDirectory: Directory.current.path,
     );
   }
-
-  @override
-  List<CliParam> get schemaFields => params;
 
   @override
   Map<String, dynamic> toJson() => {
@@ -77,7 +78,8 @@ class ApeTransitionOutput extends Output {
 
 // ─── Command ────────────────────────────────────────────────────────────────
 
-class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOutput> {
+class ApeTransitionCommand
+    implements Query<ApeTransitionInput, ApeTransitionOutput> {
   @override
   final ApeTransitionInput input;
   final Assets? _assets;
@@ -91,8 +93,9 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
   Future<ApeTransitionOutput> execute() async {
     if (input.event == null || input.event!.trim().isEmpty) {
       throw CommandException(
-        code: 'MISSING_EVENT',
-        message: 'Missing required flag --event. Usage: iq ape transition --event <event>',
+        id: 'missing-event',
+        message:
+            'Missing required flag --event. Usage: iq ape transition --event <event>',
         exitCode: ExitCode.validationFailed,
       );
     }
@@ -100,7 +103,7 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
 
     if (inquiryState.apeName == null) {
       throw CommandException(
-        code: 'NO_ACTIVE_APE',
+        id: 'no-active-ape',
         message: 'No APE is active in state ${inquiryState.state}',
         exitCode: ExitCode.conflict,
       );
@@ -109,8 +112,9 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
     final currentApeState = inquiryState.apeState;
     if (currentApeState == '_DONE') {
       throw CommandException(
-        code: 'APE_COMPLETED',
-        message: '"${inquiryState.apeName}" has already completed (_DONE). '
+        id: 'ape-completed',
+        message:
+            '"${inquiryState.apeName}" has already completed (_DONE). '
             'Transition the main FSM to advance.',
         exitCode: ExitCode.conflict,
       );
@@ -121,7 +125,7 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
     final yamlFile = File(yamlPath);
     if (!yamlFile.existsSync()) {
       throw CommandException(
-        code: 'APE_NOT_FOUND',
+        id: 'ape-not-found',
         message: 'No definition for "${inquiryState.apeName}" at $yamlPath',
         exitCode: ExitCode.notFound,
       );
@@ -133,7 +137,7 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
 
     if (stateObj == null) {
       throw CommandException(
-        code: 'INVALID_APE_STATE',
+        id: 'invalid-ape-state',
         message: '"${inquiryState.apeName}" has no state "$fromState"',
         exitCode: ExitCode.conflict,
       );
@@ -151,8 +155,9 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
     if (match == null) {
       final valid = stateObj.transitions.map((t) => t.event).join(', ');
       throw CommandException(
-        code: 'INVALID_APE_EVENT',
-        message: '"${input.event}" is not valid from '
+        id: 'invalid-ape-event',
+        message:
+            '"${input.event}" is not valid from '
             '"${inquiryState.apeName}:$fromState". Valid events: [$valid]',
         exitCode: ExitCode.validationFailed,
       );
@@ -176,5 +181,4 @@ class ApeTransitionCommand implements Query<ApeTransitionInput, ApeTransitionOut
     }
     return p.join(input.workingDirectory, 'assets', 'apes', '$name.yaml');
   }
-
 }

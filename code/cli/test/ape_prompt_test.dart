@@ -225,34 +225,37 @@ void main() {
         expect(result.prompt, contains('INTENTION FIRST'));
       });
 
-      test('records model_activity with prompt size and assembly time', () async {
-        writeState(
-          'ANALYZE',
-          issue: '145',
-          promptFragmentId: 'idle_to_analyze',
-        );
+      test(
+        'records model_activity with prompt size and assembly time',
+        () async {
+          writeState(
+            'ANALYZE',
+            issue: '145',
+            promptFragmentId: 'idle_to_analyze',
+          );
 
-        final cmd = ApePromptCommand(
-          ApePromptInput(name: 'socrates', workingDirectory: tmpDir.path),
-        );
-        final result = await cmd.execute();
+          final cmd = ApePromptCommand(
+            ApePromptInput(name: 'socrates', workingDirectory: tmpDir.path),
+          );
+          final result = await cmd.execute();
 
-        final traceContent = File(
-          p.join(tmpDir.path, 'cleanrooms', branch, 'run_trace.yaml'),
-        ).readAsStringSync();
+          final traceContent = File(
+            p.join(tmpDir.path, 'cleanrooms', branch, 'run_trace.yaml'),
+          ).readAsStringSync();
 
-        expect(traceContent, contains('event_class: model_activity'));
-        expect(traceContent, contains('phase: ANALYZE'));
-        expect(traceContent, contains('ape_name: socrates'));
-        expect(traceContent, contains('model_surface: prompt_input'));
-        expect(
-          traceContent,
-          contains('prompt_characters: ${result.prompt.runes.length}'),
-        );
-        expect(traceContent, contains('estimated_input_tokens: '));
-        expect(traceContent, contains('assembly_duration_seconds: '));
-        expect(traceContent, contains('prompt_fragment_id: idle_to_analyze'));
-      });
+          expect(traceContent, contains('event_class: model_activity'));
+          expect(traceContent, contains('phase: ANALYZE'));
+          expect(traceContent, contains('ape_name: socrates'));
+          expect(traceContent, contains('model_surface: prompt_input'));
+          expect(
+            traceContent,
+            contains('prompt_characters: ${result.prompt.runes.length}'),
+          );
+          expect(traceContent, contains('estimated_input_tokens: '));
+          expect(traceContent, contains('assembly_duration_seconds: '));
+          expect(traceContent, contains('prompt_fragment_id: idle_to_analyze'));
+        },
+      );
 
       test('darwin in EVOLUTION returns base prompt', () async {
         writeState('EVOLUTION');
@@ -293,7 +296,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('MISSING_NAME'))
+                .having((e) => e.id, 'id', equals('missing-name'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -315,7 +318,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('MISSING_NAME'))
+                .having((e) => e.id, 'id', equals('missing-name'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -337,7 +340,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_FOUND'))
+                .having((e) => e.id, 'id', equals('ape-not-found'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -359,7 +362,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_ACTIVE'))
+                .having((e) => e.id, 'id', equals('ape-not-active'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -379,7 +382,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_ACTIVE'))
+                .having((e) => e.id, 'id', equals('ape-not-active'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -399,7 +402,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_ACTIVE'))
+                .having((e) => e.id, 'id', equals('ape-not-active'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -427,7 +430,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_ACTIVE'))
+                .having((e) => e.id, 'id', equals('ape-not-active'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -498,7 +501,7 @@ void main() {
           () => cmd.execute(),
           throwsA(
             isA<CommandException>()
-                .having((e) => e.code, 'code', equals('APE_NOT_ACTIVE'))
+                .having((e) => e.id, 'id', equals('ape-not-active'))
                 .having(
                   (e) => e.exitCode,
                   'exitCode',
@@ -997,15 +1000,11 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            "blocking_sensor_stack: ['runtime', 'pre_transition']",
-          ),
+          contains("blocking_sensor_stack: ['runtime', 'pre_transition']"),
         );
         expect(
           result.prompt,
-          contains(
-            "advisory_sensor_stack: ['inferential_optional']",
-          ),
+          contains("advisory_sensor_stack: ['inferential_optional']"),
         );
         expect(result.prompt, contains('sensor_gate: handoff-to-plan'));
         expect(
@@ -1032,9 +1031,7 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            "eval_targets: ['evidence_discipline_failure']",
-          ),
+          contains("eval_targets: ['evidence_discipline_failure']"),
         );
         expect(result.prompt, contains('evidence_policy: evidence-first'));
         expect(
@@ -1293,15 +1290,11 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            "blocking_sensor_stack: ['runtime', 'pre_transition']",
-          ),
+          contains("blocking_sensor_stack: ['runtime', 'pre_transition']"),
         );
         expect(
           result.prompt,
-          contains(
-            "advisory_sensor_stack: ['inferential_optional']",
-          ),
+          contains("advisory_sensor_stack: ['inferential_optional']"),
         );
         expect(result.prompt, contains('sensor_gate: handoff-to-execute'));
         expect(
@@ -1322,9 +1315,7 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            "eval_targets: ['handoff_authority_failure']",
-          ),
+          contains("eval_targets: ['handoff_authority_failure']"),
         );
         expect(result.prompt, isNot(contains('Commit:')));
         expectContextKeyOnlyInInquiryContext(
@@ -1476,8 +1467,14 @@ void main() {
             'project_root: ${expectedProjectRoot()}',
           );
           expectContextKeyOnlyInInquiryContext(result.prompt, 'task_id: 152');
-          expectContextFieldOnlyInInquiryContext(result.prompt, 'editable_surfaces');
-          expectContextFieldOnlyInInquiryContext(result.prompt, 'done_criteria');
+          expectContextFieldOnlyInInquiryContext(
+            result.prompt,
+            'editable_surfaces',
+          );
+          expectContextFieldOnlyInInquiryContext(
+            result.prompt,
+            'done_criteria',
+          );
         },
       );
 
@@ -1569,15 +1566,10 @@ void main() {
           result.prompt,
           contains('context_policy: authoritative-handoff'),
         );
+        expect(result.prompt, contains('authority_mode: trust-plan-first'));
         expect(
           result.prompt,
-          contains('authority_mode: trust-plan-first'),
-        );
-        expect(
-          result.prompt,
-          contains(
-            "upfront_context: ['cleanrooms/152-test-branch/plan.md']",
-          ),
+          contains("upfront_context: ['cleanrooms/152-test-branch/plan.md']"),
         );
         expect(
           result.prompt,
@@ -1593,9 +1585,7 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            'authoritative_handoff: cleanrooms/152-test-branch/plan.md',
-          ),
+          contains('authoritative_handoff: cleanrooms/152-test-branch/plan.md'),
         );
         expect(
           result.prompt,
@@ -1615,10 +1605,7 @@ void main() {
             'reread_avoidance_rule: do not re-read broad analysis artifacts when plan.md already defines the bounded execution contract',
           ),
         );
-        expect(
-          result.prompt,
-          contains('sensor_policy: minimum-phase-stack'),
-        );
+        expect(result.prompt, contains('sensor_policy: minimum-phase-stack'));
         expect(
           result.prompt,
           contains(
@@ -1633,9 +1620,7 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            "advisory_sensor_stack: ['inferential_optional']",
-          ),
+          contains("advisory_sensor_stack: ['inferential_optional']"),
         );
         expect(result.prompt, contains('sensor_gate: handoff-to-end'));
         expect(
@@ -1666,9 +1651,7 @@ void main() {
         );
         expect(
           result.prompt,
-          contains(
-            'failure_taxonomy_surface: docs/spec/eval-model.md',
-          ),
+          contains('failure_taxonomy_surface: docs/spec/eval-model.md'),
         );
         expect(
           result.prompt,
@@ -1986,111 +1969,105 @@ void main() {
         },
       );
 
-      test(
-        'darwin prompt includes cycle artifact contract in assembled prompt',
-        () async {
-          File(
-            p.join(
-              gitTmpDir.path,
-              'cleanrooms',
-              '152-test-branch',
-              kStateFileName,
-            ),
-          ).writeAsStringSync('state: EVOLUTION\nissue: "152"\n');
+      test('darwin prompt includes cycle artifact contract in assembled prompt', () async {
+        File(
+          p.join(
+            gitTmpDir.path,
+            'cleanrooms',
+            '152-test-branch',
+            kStateFileName,
+          ),
+        ).writeAsStringSync('state: EVOLUTION\nissue: "152"\n');
 
-          final cmd = ApePromptCommand(
-            ApePromptInput(
-              name: 'darwin',
-              subState: 'observe',
-              workingDirectory: gitTmpDir.path,
-            ),
-          );
-          final result = await cmd.execute();
+        final cmd = ApePromptCommand(
+          ApePromptInput(
+            name: 'darwin',
+            subState: 'observe',
+            workingDirectory: gitTmpDir.path,
+          ),
+        );
+        final result = await cmd.execute();
 
-          expect(result.prompt, contains('diagnosis.md'));
-          expect(result.prompt, contains('FOCUS: Observation.'));
-          expect(
-            result.prompt,
-            contains(
-              'EVOLUTION owns the repository procedure for issue search/comment/create and metrics collection.',
-            ),
-          );
-          expect(result.prompt, contains('# --- inquiry-context ---'));
-          expect(
-            result.prompt,
-            contains('analyze_dir: cleanrooms/152-test-branch/analyze/'),
-          );
-          expect(
-            result.prompt,
-            contains('plan_file: cleanrooms/152-test-branch/plan.md'),
-          );
-          expect(
-            result.prompt,
-            contains(
-              'retrospective_file: cleanrooms/152-test-branch/retrospective.md',
-            ),
-          );
-          expect(
-            result.prompt,
-            contains('mutations_file: cleanrooms/152-test-branch/mutations.md'),
-          );
-          expect(
-            result.prompt,
-            contains('state_file: cleanrooms/152-test-branch/.iq.state.yaml'),
-          );
-          expect(
-            result.prompt,
-            contains('metrics_snapshot_file: .inquiry/metrics_snapshot.yaml'),
-          );
-          expect(
-            result.prompt,
-            contains('metrics_file: .inquiry/metrics.yaml'),
-          );
-          expect(
-            result.prompt,
-            contains('observability_policy: evolution-audit'),
-          );
-          expect(
-            result.prompt,
-            contains(
-              'execution_trace_surface: cleanrooms/152-test-branch/run_trace.yaml',
-            ),
-          );
-          expect(
-            result.prompt,
-            contains(
-              "trace_targets: ['transition', 'sensor_run', 'block', 'retry', 'phase_timing']",
-            ),
-          );
-          expect(
-            result.prompt,
-            contains('eval_policy: harness-evolution-minimum'),
-          );
-          expect(
-            result.prompt,
-            contains(
-              "eval_targets: ['task_contract_failure', 'evidence_discipline_failure', 'handoff_authority_failure', 'sensor_gate_failure', 'observability_failure']",
-            ),
-          );
-          expect(
-            result.prompt,
-            contains(
-              "grader_stack: ['structure_grader', 'trace_grader', 'artifact_consistency_grader', 'human_audit_grader']",
-            ),
-          );
-          expect(
-            result.prompt,
-            contains(
-              'eval_authority_rule: trace and artifact graders outrank narrative retrospection when classifying repeated harness failures',
-            ),
-          );
-          expect(
-            result.prompt,
-            contains('output_dir: cleanrooms/152-test-branch/'),
-          );
-          expectExplicitContextAfter(result.prompt, 'FOCUS: Observation.');
-        },
-      );
+        expect(result.prompt, contains('diagnosis.md'));
+        expect(result.prompt, contains('FOCUS: Observation.'));
+        expect(
+          result.prompt,
+          contains(
+            'EVOLUTION owns the repository procedure for issue search/comment/create and metrics collection.',
+          ),
+        );
+        expect(result.prompt, contains('# --- inquiry-context ---'));
+        expect(
+          result.prompt,
+          contains('analyze_dir: cleanrooms/152-test-branch/analyze/'),
+        );
+        expect(
+          result.prompt,
+          contains('plan_file: cleanrooms/152-test-branch/plan.md'),
+        );
+        expect(
+          result.prompt,
+          contains(
+            'retrospective_file: cleanrooms/152-test-branch/retrospective.md',
+          ),
+        );
+        expect(
+          result.prompt,
+          contains('mutations_file: cleanrooms/152-test-branch/mutations.md'),
+        );
+        expect(
+          result.prompt,
+          contains('state_file: cleanrooms/152-test-branch/.iq.state.yaml'),
+        );
+        expect(
+          result.prompt,
+          contains('metrics_snapshot_file: .inquiry/metrics_snapshot.yaml'),
+        );
+        expect(result.prompt, contains('metrics_file: .inquiry/metrics.yaml'));
+        expect(
+          result.prompt,
+          contains('observability_policy: evolution-audit'),
+        );
+        expect(
+          result.prompt,
+          contains(
+            'execution_trace_surface: cleanrooms/152-test-branch/run_trace.yaml',
+          ),
+        );
+        expect(
+          result.prompt,
+          contains(
+            "trace_targets: ['transition', 'sensor_run', 'block', 'retry', 'phase_timing']",
+          ),
+        );
+        expect(
+          result.prompt,
+          contains('eval_policy: harness-evolution-minimum'),
+        );
+        expect(
+          result.prompt,
+          contains(
+            "eval_targets: ['task_contract_failure', 'evidence_discipline_failure', 'handoff_authority_failure', 'sensor_gate_failure', 'observability_failure']",
+          ),
+        );
+        expect(
+          result.prompt,
+          contains(
+            "grader_stack: ['structure_grader', 'trace_grader', 'artifact_consistency_grader', 'human_audit_grader']",
+          ),
+        );
+        expect(
+          result.prompt,
+          contains(
+            'eval_authority_rule: trace and artifact graders outrank narrative retrospection when classifying repeated harness failures',
+          ),
+        );
+        expect(
+          result.prompt,
+          contains('output_dir: cleanrooms/152-test-branch/'),
+        );
+        expectExplicitContextAfter(result.prompt, 'FOCUS: Observation.');
+      });
 
       test('no context injected when not in a git repo', () async {
         // A fresh directory with no git repo → no cycle resolves.
