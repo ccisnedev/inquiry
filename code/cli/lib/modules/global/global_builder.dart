@@ -1,23 +1,8 @@
-// `UpgradeInput`/`UpgradeOutput`/`UpgradeCommand` and their `Uninstall*`
-// counterparts are hidden: `modular_cli_sdk` re-exports its own
-// `InstallationPlugin`'s classes of the same names, which this CLI does not
-// use (see `commands/upgrade.dart` / `commands/uninstall.dart` for Inquiry's
-// own, unrelated implementations).
-import 'package:modular_cli_sdk/modular_cli_sdk.dart'
-    hide
-        UpgradeInput,
-        UpgradeOutput,
-        UpgradeCommand,
-        UninstallInput,
-        UninstallOutput,
-        UninstallCommand;
+import 'package:modular_cli_sdk/modular_cli_sdk.dart';
 
 import '../../assets.dart';
-import '../../hosts/deployer.dart';
 import 'commands/init.dart';
 import 'commands/tui.dart';
-import 'commands/uninstall.dart';
-import 'commands/upgrade.dart';
 
 /// `help` is not registered here: `modular_cli_sdk` renders it from the command
 /// catalog these registrations feed, so a command cannot ship without appearing
@@ -30,11 +15,16 @@ import 'commands/upgrade.dart';
 /// `InquiryDoctorChecksPlugin` (see `doctor_checks_plugin.dart`), not
 /// registered as a route of their own — a second `doctor` route here would
 /// collide with `DoctorPlugin`'s (`PLUGIN_DUPLICATE_ROUTE`).
-void buildGlobalModule(
-  ModuleBuilder m, {
-  required HostDeployer cleaner,
-  Assets? assets,
-}) {
+///
+/// `upgrade` and `uninstall` are likewise not registered here: `modular_cli_sdk`'s
+/// `InstallationPlugin` registers both globally itself (see
+/// `inquiry_cli.dart`), with inquiry's own extra steps
+/// (`commands/upgrade.dart`'s `RedeployHosts`, `commands/uninstall.dart`'s
+/// `CleanDeployedHosts` / `RemoveRepoScopedAgent`) supplied through
+/// `CliInstallationConfig.postUpgradeSteps` / `preUninstallSteps`. A second
+/// `upgrade` or `uninstall` route here would collide with the plugin's
+/// (`PLUGIN_DUPLICATE_ROUTE`).
+void buildGlobalModule(ModuleBuilder m, {Assets? assets}) {
   m.query<TuiInput, TuiOutput>(
     '',
     (req) => TuiCommand(TuiInput.fromCliRequest(req)),
@@ -50,22 +40,5 @@ void buildGlobalModule(
         'Set up the Inquiry workspace in this repo (cleanrooms + .inquiry). Install a host first with `iq host get --apply`.',
     globals: true,
     contract: InitInput.contract,
-  );
-
-  m.command<UpgradeInput, UpgradeOutput>(
-    'upgrade',
-    (req) => UpgradeCommand(UpgradeInput.fromCliRequest(req)),
-    description: 'Download and install the latest Inquiry release',
-    globals: true,
-    contract: UpgradeInput.contract,
-  );
-
-  m.command<UninstallInput, UninstallOutput>(
-    'uninstall',
-    (req) =>
-        UninstallCommand(UninstallInput.fromCliRequest(req), deployer: cleaner),
-    description: 'Remove Inquiry CLI from the system',
-    globals: true,
-    contract: UninstallInput.contract,
   );
 }

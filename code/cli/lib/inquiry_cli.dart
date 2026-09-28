@@ -14,6 +14,7 @@ import 'assets.dart';
 import 'modules/global/global_builder.dart';
 import 'modules/global/commands/doctor.dart';
 import 'modules/global/doctor_checks_plugin.dart';
+import 'modules/global/installation_config.dart';
 import 'modules/fsm/fsm_builder.dart';
 import 'modules/ape/ape_builder.dart';
 import 'modules/implementation/implementation_builder.dart';
@@ -47,20 +48,6 @@ Future<int> runInquiry(
   final assetsRoot = p.dirname(p.dirname(Platform.resolvedExecutable));
   final assets = Assets(root: assetsRoot);
 
-  final cli =
-      ModularCli(
-          name: 'inquiry',
-          version: inquiryVersion,
-          suggestionDistance: 2,
-        )
-        ..plugin(VersionPlugin(version: inquiryVersion))
-        ..plugin(const DoctorPlugin())
-        ..plugin(
-          InquiryDoctorChecksPlugin(
-            checks: InquiryDoctorChecks(assets: assets),
-          ),
-        );
-
   final deployer = HostDeployer(
     assets: Assets(root: assetsRoot),
     adapters: deployAdapters,
@@ -79,7 +66,34 @@ Future<int> runInquiry(
         '',
   );
 
-  cli.module('', (m) => buildGlobalModule(m, cleaner: cleaner, assets: assets));
+  final cli =
+      ModularCli(
+          name: 'inquiry',
+          version: inquiryVersion,
+          suggestionDistance: 2,
+        )
+        ..plugin(VersionPlugin(version: inquiryVersion))
+        ..plugin(const DoctorPlugin())
+        ..plugin(
+          InquiryDoctorChecksPlugin(
+            checks: InquiryDoctorChecks(assets: assets),
+          ),
+        )
+        ..plugin(
+          InstallationPlugin(
+            config: inquiryInstallationConfig(
+              cleaner: cleaner,
+              repoScopedAgentPath: p.join(
+                Directory.current.path,
+                '.github',
+                'agents',
+                'inquiry.agent.md',
+              ),
+            ),
+          ),
+        );
+
+  cli.module('', (m) => buildGlobalModule(m, assets: assets));
   cli.module(
     'host',
     (m) => buildHostModule(m, deployer: deployer, cleaner: cleaner),
