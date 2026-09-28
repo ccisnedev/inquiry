@@ -294,6 +294,40 @@ void main() {
       },
     );
 
+    // `iq upgrade --apply` no-ops ("Already on the latest version") whenever
+    // the installed binary already matches the latest release tag, which
+    // says nothing about whether assets/ on disk are intact. Missing assets
+    // while the binary is already current is exactly the case where telling
+    // someone to run upgrade sends them to a command that will do nothing.
+    test(
+      'checkAssets does not point at upgrade to restore missing assets, '
+      'since upgrade is a no-op once the binary is already current',
+      () async {
+        final customDir = Directory.systemTemp.createTempSync(
+          'doctor_missing_assets_remedy_',
+        );
+        addTearDown(() => customDir.deleteSync(recursive: true));
+
+        final checks = makeChecks(
+          assets: seedAssets(
+            customDir,
+            apes: ['socrates', 'descartes', 'ada', 'darwin'],
+          ),
+        );
+        final result = await checks.checkAssets();
+
+        expect(result.status, CliCheckStatus.error);
+        expect(result.message, isNot(contains('iq upgrade')));
+        expect(
+          result.message,
+          contains('install.ps1'),
+          reason:
+              'reinstalling from the site installer is what actually '
+              're-extracts assets/, unlike a no-op upgrade',
+        );
+      },
+    );
+
     test('checkGit reports error when git is missing', () async {
       final checks = makeChecks(runProcess: fakeRunner(gitFails: true));
       final result = await checks.checkGit();
