@@ -47,7 +47,24 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   version.** `UpgradeCommand` reports "Already on the latest version" and
   runs no steps at all in that case, regardless of whether `assets/` on disk
   is intact. The message now points at reinstalling from the site installer
-  instead, which always re-extracts everything.
+  instead, which always re-extracts everything, and the reinstall one-liner
+  is now platform-aware: Windows still gets `install.ps1`, Linux gets
+  `install.sh` (the earlier fix always named `install.ps1`, a PowerShell
+  command Bash cannot run, and `install.ps1` itself refuses any OS but
+  Windows).
+
+### Changed (breaking)
+
+- **`iq upgrade --apply --autoapprove --json`'s shape changed for a failed
+  host redeploy.** Before this release, a failed redeploy put the result at
+  the top level: `{"upgraded": true, "deployed": false, ...}`. Adopting
+  `modular_cli_sdk`'s `InstallationPlugin` moves it under `extra`, the SDK's
+  own contract for `postUpgradeSteps` outcomes: `{"upgraded": true, "extra":
+  [{"verb": "deploy", "target": "every host on this machine", "detail":
+  "...", "values": {"deployed": false}}]}`. A `--json` consumer that read
+  the old top-level `deployed` field needs to read
+  `extra[].values.deployed` instead. This is the SDK's own result contract,
+  not Inquiry-specific, and is not worked around here.
 
 ### Known
 
@@ -59,6 +76,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   uninstalled" by then. `modular_cli_sdk` 0.8.0's `DeleteInstallation` is a
   verbatim port of this same logic, so adopting it did not fix this. Not
   fixed in this release.
+
+- **`InstallationPlugin` construction crashes on an OS with no configured
+  release asset.** `PlatformOps.current` throws `UnsupportedError` the
+  moment `config.assets[Platform.operatingSystem]` is missing, and
+  `InstallationPlugin`'s constructor calls it eagerly, unconditionally, for
+  every command this CLI runs, not only `upgrade`/`uninstall`. On macOS
+  (unconfigured in Inquiry's `assets` map, since macOS is unsupported by
+  both CLIs already), even `iq --version` crashes. This is a
+  `modular_cli_sdk` bug (eager rather than lazy construction), scheduled to
+  be fixed in 0.8.1, and is not worked around in Inquiry.
 
 ## [0.26.1]
 
