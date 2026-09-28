@@ -10,14 +10,44 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 - **`version` and `doctor` are now `modular_cli_sdk`'s own plugins**
   (`VersionPlugin`, `DoctorPlugin`), on `cli_router` 0.2.0 and
-  `modular_cli_sdk` 0.7.0. Inquiry's own doctor checks (git, gh, gh auth,
-  `.inquiry/` init, bundled assets, available updates, per-host deployment)
-  are contributed to `DoctorPlugin` through `InquiryDoctorChecksPlugin`.
-  `iq version` now prints `inquiry: <version>` instead of the bare version
-  string, so a script that parsed the old bare output needs updating.
-  `upgrade` and `uninstall` remain Inquiry's own commands, unchanged in
-  behavior. The `fsm`, `ape`, `host` and `implementation` modules moved from
-  the old `CliParam` list schema to `cli_router` 0.2.0's `CliContract`.
+  `modular_cli_sdk` 0.8.0. Inquiry's own doctor checks (git, gh, gh auth,
+  `.inquiry/` init, bundled assets, per-host deployment) are contributed to
+  `DoctorPlugin` through `InquiryDoctorChecksPlugin`. `iq version` now prints
+  `inquiry: <version>` instead of the bare version string, so a script that
+  parsed the old bare output needs updating. The `fsm`, `ape`, `host` and
+  `implementation` modules moved from the old `CliParam` list schema to
+  `cli_router` 0.2.0's `CliContract`.
+
+- **`upgrade` and `uninstall` are now `modular_cli_sdk`'s `InstallationPlugin`
+  (0.8.0), not Inquiry's own commands.** The plugin was extracted from
+  macss's and this CLI's own prior implementations with confirmed parity
+  (see `docs/installation-parity.md` in `modular_cli_sdk`). Inquiry's own
+  extra steps (redeploying every host after upgrade, cleaning deployed hosts
+  and removing the repo-scoped agent file before uninstall) are supplied
+  through `CliInstallationConfig.postUpgradeSteps`/`preUninstallSteps`,
+  unchanged in behavior. `verifyAfterInstall` is off, since Inquiry's own
+  post-install check (`RedeployHosts`) is lenient by design (#300) and must
+  not run twice back to back with the plugin's own hard-fail inline check.
+  `doctor` gains a `release` check from the plugin, which reports a newer
+  version the same way the removed `update` check did, except that a failed
+  lookup is now reported instead of silently read as "up to date" (see
+  Fixed, below).
+
+### Fixed
+
+- **`iq doctor`'s own update check was silent on a failed lookup.**
+  `checkUpdate` was backed by `src/version_check.dart`'s
+  `checkLatestVersion`, explicitly silent on network failures: a lookup that
+  never ran looked identical to "no update available". Removed in favor of
+  `modular_cli_sdk`'s own `release` doctor check (see above), which reports
+  the failure instead of hiding it.
+
+- **`checkAssets` told a user to run `iq upgrade --apply` to restore missing
+  assets, which does nothing once the binary is already on the latest
+  version.** `UpgradeCommand` reports "Already on the latest version" and
+  runs no steps at all in that case, regardless of whether `assets/` on disk
+  is intact. The message now points at reinstalling from the site installer
+  instead, which always re-extracts everything.
 
 ### Known
 
@@ -26,7 +56,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   checking the rename, waits on a `timeout /t 2` that exits instantly with no
   console attached, then runs `rmdir /s /q` without checking whether it
   worked either, and `iq uninstall` has already printed "Inquiry
-  uninstalled" by then. Not fixed in this release.
+  uninstalled" by then. `modular_cli_sdk` 0.8.0's `DeleteInstallation` is a
+  verbatim port of this same logic, so adopting it did not fix this. Not
+  fixed in this release.
 
 ## [0.26.1]
 
