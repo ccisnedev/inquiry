@@ -53,10 +53,10 @@ packages:
     dependency: "direct main"
     description:
       name: cli_router
-      sha256: "7d66100e2e18c673c92836a39a379d80563f990a7fc340ec96218d3ffec2b38f"
+      sha256: "6532e4ef4f30516d768a7d0a29ed39d6f114600b7a174666f2381f4cbeeb95bb"
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.0"
+    version: "0.2.1"
   collection:
     dependency: transitive
     description:
@@ -197,10 +197,10 @@ packages:
     dependency: "direct main"
     description:
       name: modular_cli_sdk
-      sha256: ca09a4fbf772281ba5242bd4b3f78a6ab8b6c17f6df2eeaa1e6f020f49f69793
+      sha256: "6b2c499fec7ef92920ad3e2faa8f16affd61fb3d6985a15398f380b503db9a68"
       url: "https://pub.dev"
     source: hosted
-    version: "0.8.0"
+    version: "0.8.1"
   node_preamble:
     dependency: transitive
     description:

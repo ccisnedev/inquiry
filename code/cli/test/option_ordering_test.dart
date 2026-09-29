@@ -100,10 +100,12 @@ void main() {
     test(
       'an option after the operand is accepted with the default environment',
       () async {
-        final r = await _run(
-          const ['inspect', '--json', '40', '--verbose'],
-          environment: const {},
-        );
+        final r = await _run(const [
+          'inspect',
+          '--json',
+          '40',
+          '--verbose',
+        ], environment: const {});
 
         expect(r.code, ExitCode.ok);
         final data = jsonDecode(r.out) as Map<String, dynamic>;
@@ -112,21 +114,18 @@ void main() {
       },
     );
 
-    test(
-      'POSIXLY_CORRECT rejects the same option-after-operand invocation as '
-      'misplaced-option',
-      () async {
-        final r = await _run(
-          const ['inspect', '--json', '40', '--verbose'],
-          environment: const {'POSIXLY_CORRECT': '1'},
-        );
+    test('POSIXLY_CORRECT rejects the same option-after-operand invocation as '
+        'misplaced-option', () async {
+      final r = await _run(
+        const ['inspect', '--json', '40', '--verbose'],
+        environment: const {'POSIXLY_CORRECT': '1'},
+      );
 
-        expect(r.code, ExitCode.validationFailed);
-        final envelope = jsonDecode(r.err) as Map<String, dynamic>;
-        final error = envelope['error'] as Map<String, dynamic>;
-        expect(error['id'], 'misplaced-option');
-      },
-    );
+      expect(r.code, ExitCode.validationFailed);
+      final envelope = jsonDecode(r.err) as Map<String, dynamic>;
+      final error = envelope['error'] as Map<String, dynamic>;
+      expect(error['id'], 'misplaced-option');
+    });
 
     test(
       'POSIXLY_CORRECT still accepts the option before the operand',
