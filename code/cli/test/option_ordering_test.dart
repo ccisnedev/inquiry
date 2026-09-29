@@ -15,7 +15,7 @@ import 'support/string_io_sink.dart';
 ///
 /// This exercises that behavior directly against [ModularCli] rather than
 /// through `runInquiry`: no `iq` command declares a positional today (see
-/// the note at the bottom of `cli_contract_test.dart` — that coverage lives
+/// the note at the bottom of `cli_contract_test.dart`; that coverage lives
 /// in macss), so there is no shipped `iq` invocation that has both an
 /// operand and an option to reorder. The router and the SDK version this
 /// asserts against are exactly the ones `runInquiry` runs on top of
