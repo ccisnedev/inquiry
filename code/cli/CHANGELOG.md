@@ -13,9 +13,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   default (GNU permutation) and falls back to strict POSIX order when
   `POSIXLY_CORRECT` is set in the environment, rejecting it as
   `misplaced-option`. `ModularCli.run` forwards an optional `environment`
-  map to the router for this. No `iq` command declares a positional
-  operand today, so `runInquiry`'s own dispatch is unaffected; the new
-  ordering is covered directly against `ModularCli` in
+  map to the router for this, and `runInquiry` now takes and forwards the
+  same optional `environment` parameter. `iq help`, which reaches the
+  SDK's built-in `help *` wildcard route (inquiry registers no `help`
+  route of its own), is covered end to end through `runInquiry` in
+  `test/help_option_ordering_test.dart`; no `iq` command declares a
+  `<param>` positional today, so the full content-equivalent GNU
+  permutation (a reordered option still taking effect, not just accepted)
+  is covered directly against `ModularCli` in
   `test/option_ordering_test.dart`. `CliInstallationConfig.alias` is now
   optional and `PlatformOps` is resolved lazily in this SDK release; both
   are no-ops for inquiry.

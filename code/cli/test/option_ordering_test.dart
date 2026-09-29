@@ -14,13 +14,23 @@ import 'support/string_io_sink.dart';
 /// process environment.
 ///
 /// This exercises that behavior directly against [ModularCli] rather than
-/// through `runInquiry`: no `iq` command declares a positional today (see
-/// the note at the bottom of `cli_contract_test.dart`; that coverage lives
-/// in macss), so there is no shipped `iq` invocation that has both an
-/// operand and an option to reorder. The router and the SDK version this
-/// asserts against are exactly the ones `runInquiry` runs on top of
-/// (`pubspec.yaml`'s `modular_cli_sdk`/`cli_router` pins), so this is a real
-/// exercise of the dependency this CLI ships, not a mock of it.
+/// through `runInquiry`: no `iq` command declares a `<param>` positional
+/// today (see the note at the bottom of `cli_contract_test.dart`; that
+/// coverage lives in macss). The router and the SDK version this asserts
+/// against are exactly the ones `runInquiry` runs on top of (`pubspec.yaml`'s
+/// `modular_cli_sdk`/`cli_router` pins), so this is a real exercise of the
+/// dependency this CLI ships, not a mock of it.
+///
+/// `iq` does reach one real operand-bearing route through `runInquiry`: the
+/// SDK's built-in `help *` wildcard (see `help_option_ordering_test.dart`).
+/// But a trailing `*` freezes everything past its own first captured operand
+/// as literal passthrough data rather than re-reading it as an option; this
+/// is by design, per `cli_router`'s own `_normalizeForPermute` docs, and is
+/// the same reason `docker run IMAGE CMD -flags` reaches the wildcard with
+/// its flags intact. So `help`'s permuted invocation is accepted, but not
+/// content-equivalent to its canonical order, and cannot demonstrate the
+/// full GNU-permutation semantics (a reordered option still taking effect)
+/// that this test does against a plain `<param>` positional.
 class _InspectInput extends Input {
   _InspectInput({required this.issue, required this.verbose});
 

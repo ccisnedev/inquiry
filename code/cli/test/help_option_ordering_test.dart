@@ -7,8 +7,8 @@ import 'support/string_io_sink.dart';
 /// `cli_router` 0.2.1 accepts an option written after an operand (GNU
 /// permutation) by default, and rejects it as `misplaced-option` when
 /// `POSIXLY_CORRECT` is set in the environment. `runInquiry` forwards its own
-/// optional `environment` map to `ModularCli.run`, so a caller — this test
-/// included — can pick either ordering without touching the real process
+/// optional `environment` map to `ModularCli.run`, so a caller, this test
+/// included, can pick either ordering without touching the real process
 /// environment.
 ///
 /// The real command exercised here is `iq help`: inquiry registers no `help`
@@ -95,19 +95,16 @@ void main() {
       },
     );
 
-    test(
-      'POSIXLY_CORRECT rejects the same topic-then-option invocation as '
-      'misplaced-option',
-      () async {
-        final r = await _run(
-          const ['help', '--json', 'fsm', '--quiet'],
-          environment: const {'POSIXLY_CORRECT': '1'},
-        );
+    test('POSIXLY_CORRECT rejects the same topic-then-option invocation as '
+        'misplaced-option', () async {
+      final r = await _run(
+        const ['help', '--json', 'fsm', '--quiet'],
+        environment: const {'POSIXLY_CORRECT': '1'},
+      );
 
-        expect(r.code, ExitCode.validationFailed);
-        expect(r.err, contains('misplaced-option'));
-      },
-    );
+      expect(r.code, ExitCode.validationFailed);
+      expect(r.err, contains('misplaced-option'));
+    });
 
     test(
       'POSIXLY_CORRECT still accepts every option before the topic',
