@@ -44,6 +44,7 @@ Future<int> runInquiry(
   List<String> args, {
   IOSink? stdout,
   IOSink? stderr,
+  Map<String, String>? environment,
 }) async {
   final assetsRoot = p.dirname(p.dirname(Platform.resolvedExecutable));
   final assets = Assets(root: assetsRoot);
@@ -124,5 +125,10 @@ Future<int> runInquiry(
     (m) => buildImplementationModule(m, assets: assets),
   );
 
-  return cli.run(normalizeInquiryArgs(args), stdout: stdout, stderr: stderr);
+  return cli.run(
+    normalizeInquiryArgs(args),
+    stdout: stdout,
+    stderr: stderr,
+    environment: environment,
+  );
 }

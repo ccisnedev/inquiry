@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.27.1]
+
+### Changed
+
+- **`modular_cli_sdk` bumped to `^0.8.1`, `cli_router` to `^0.2.1`.**
+  `cli_router` 0.2.1 now accepts an option written after an operand by
+  default (GNU permutation) and falls back to strict POSIX order when
+  `POSIXLY_CORRECT` is set in the environment, rejecting it as
+  `misplaced-option`. `ModularCli.run` forwards an optional `environment`
+  map to the router for this, and `runInquiry` now takes and forwards the
+  same optional `environment` parameter. `iq help`, which reaches the
+  SDK's built-in `help *` wildcard route (inquiry registers no `help`
+  route of its own), is covered end to end through `runInquiry` in
+  `test/help_option_ordering_test.dart`; no `iq` command declares a
+  `<param>` positional today, so the full content-equivalent GNU
+  permutation (a reordered option still taking effect, not just accepted)
+  is covered directly against `ModularCli` in
+  `test/option_ordering_test.dart`. `CliInstallationConfig.alias` is now
+  optional and `PlatformOps` is resolved lazily in this SDK release; both
+  are no-ops for inquiry.
+
 ## [0.27.0]
 
 ### Changed (breaking)
