@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.27.2]
+
+### Changed
+
+- **`modular_cli_sdk` bumped to `^0.8.3`.** Fixes
+  [modular_cli_sdk#44](https://github.com/ccisnedev/modular_cli_sdk/issues/44):
+  `HttpCliReleaseSource` never closed its `http.Client`, so `doctor`,
+  `upgrade` and `uninstall` printed their result almost instantly but the
+  process stayed alive for another ~15s waiting on `HttpClient`'s idle
+  timeout before exiting. Also carries 0.8.2's fix for a Linux `uninstall`
+  race ([modular_cli_sdk#40](https://github.com/ccisnedev/modular_cli_sdk/issues/40)).
+  No inquiry-side code changes needed.
+
 ## [0.27.1]
 
 ### Changed
