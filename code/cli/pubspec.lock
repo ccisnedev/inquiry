@@ -197,10 +197,10 @@ packages:
     dependency: "direct main"
     description:
       name: modular_cli_sdk
-      sha256: "6b2c499fec7ef92920ad3e2faa8f16affd61fb3d6985a15398f380b503db9a68"
+      sha256: "528444c296e4d0513701089feb341aa9b5b2b4f286ab9c7b868e19ca0577952a"
       url: "https://pub.dev"
     source: hosted
-    version: "0.8.1"
+    version: "0.8.3"
   node_preamble:
     dependency: transitive
     description:
